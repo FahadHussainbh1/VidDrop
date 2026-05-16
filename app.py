@@ -6,13 +6,18 @@ import uuid
 import threading
 import time
 import json
+import shutil  # Added to find ffmpeg automatically!
 
 app = Flask(__name__)
 
 # This ensures the script always knows exactly where it is running from
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
-FFMPEG_PATH = r"D:\viddrop\viddrop"
+
+# --- DYNAMIC FFMPEG CONFIGURATION ---
+# On Windows, if ffmpeg.exe is in your project folder, it finds it.
+# On Render (Linux), it will automatically locate the server's built-in 'ffmpeg'.
+FFMPEG_PATH = shutil.which("ffmpeg") or os.path.join(BASE_DIR, "ffmpeg.exe")
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
@@ -29,7 +34,7 @@ def detect_platform(url):
 
 def get_video_info(url):
     try:
-        # Added --ffmpeg-location and errors='replace'
+        # Pass the dynamic path directly to yt-dlp
         result = subprocess.run(
             ["python", "-m", "yt_dlp", "--ffmpeg-location", FFMPEG_PATH, "--dump-json", "--no-playlist", url],
             capture_output=True, text=True, timeout=30, errors='replace'
@@ -52,29 +57,22 @@ def download_video(job_id, url, quality, fmt):
         # Template uses job_id to keep it unique
         output_template = os.path.join(DOWNLOAD_DIR, f"{job_id}_%(title).80s.%(ext)s")
 
-        # The FIXED Command
-        # Use the full path directly to the exe
-        ffmpeg_exe = os.path.join(FFMPEG_PATH, "ffmpeg.exe")
-
         cmd = [
             "python", "-m", "yt_dlp", 
-            "--ffmpeg-location", ffmpeg_exe, 
+            "--ffmpeg-location", FFMPEG_PATH,  # Uses the clean, dynamic path
             "--no-playlist", 
             "-o", output_template,
             "--merge-output-format", "mp4",
-            "--fixup", "detect_or_warn", # Helps fix stream errors
+            "--fixup", "detect_or_warn", 
             url
         ]
 
         # Quality Logic
-        # Quality Logic - More flexible for Pinterest/Facebook
         if quality == "best":
-            # This asks for high quality MP4, but falls back to ANY best quality if that fails
             cmd += ["-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best"]
         elif quality == "audio":
             cmd += ["-f", "bestaudio", "-x", "--audio-format", "mp3"]
         else:
-            # Standard quality fallback
             cmd += ["-f", "best"]
 
         cmd.append(url)
@@ -84,7 +82,7 @@ def download_video(job_id, url, quality, fmt):
         )
 
         for line in process.stdout:
-            print(f"DEBUG: {line.strip()}") # Watch this in your CMD window!
+            print(f"DEBUG: {line.strip()}") 
             prog_match = re.search(r'(\d+\.?\d*)%', line)
             if prog_match:
                 jobs[job_id]["progress"] = float(prog_match.group(1))
@@ -92,15 +90,13 @@ def download_video(job_id, url, quality, fmt):
         process.wait()
 
         if process.returncode == 0:
-            # Look for the file and RENAME it to be safe for browsers
             for f in os.listdir(DOWNLOAD_DIR):
                 if f.startswith(job_id):
                     old_path = os.path.join(DOWNLOAD_DIR, f)
-                    # Safe Name: No spaces, no weird characters
                     safe_name = re.sub(r'[^\w\d.]', '_', f)
                     new_path = os.path.join(DOWNLOAD_DIR, safe_name)
                     
-                    if os.path.exists(new_path): os.remove(new_path) # Clean old if exists
+                    if os.path.exists(new_path): os.remove(new_path) 
                     os.rename(old_path, new_path)
                     
                     jobs[job_id]["status"] = "done"
@@ -134,7 +130,7 @@ def start_download():
 @app.route("/api/status/<job_id>")
 def job_status(job_id): return jsonify(jobs.get(job_id, {"error": "Not found"}))
 
-@app.route("/file/<path:filename>") # Fixed path route
+@app.route("/file/<path:filename>") 
 def serve_file(filename):
     return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
 
