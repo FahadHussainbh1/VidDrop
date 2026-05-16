@@ -7,6 +7,8 @@ import threading
 import time
 import json
 import shutil  # Added to find ffmpeg automatically!
+# New indestructible setup
+import imageio_ffmpeg
 
 app = Flask(__name__)
 
@@ -17,7 +19,7 @@ DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 # --- DYNAMIC FFMPEG CONFIGURATION ---
 # On Windows, if ffmpeg.exe is in your project folder, it finds it.
 # On Render (Linux), it will automatically locate the server's built-in 'ffmpeg'.
-FFMPEG_PATH = shutil.which("ffmpeg") or os.path.join(BASE_DIR, "ffmpeg.exe")
+FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
@@ -36,7 +38,7 @@ def get_video_info(url):
     try:
         # Pass the dynamic path directly to yt-dlp
         result = subprocess.run(
-            ["python", "-m", "yt_dlp", "--ffmpeg-location", FFMPEG_PATH, "--dump-json", "--no-playlist", url],
+            [shutil.which("python3") or "python", "-m", "yt_dlp", "--ffmpeg-location", FFMPEG_PATH, "--dump-json", "--no-playlist", url],
             capture_output=True, text=True, timeout=30, errors='replace'
         )
         if result.returncode == 0:
@@ -58,8 +60,8 @@ def download_video(job_id, url, quality, fmt):
         output_template = os.path.join(DOWNLOAD_DIR, f"{job_id}_%(title).80s.%(ext)s")
 
         cmd = [
-            "python", "-m", "yt_dlp", 
-            "--ffmpeg-location", FFMPEG_PATH,  # Uses the clean, dynamic path
+           shutil.which("python3") or "python", "-m", "yt_dlp", 
+           "--ffmpeg-location", FFMPEG_PATH,  # Uses the clean, dynamic path
             "--no-playlist", 
             "-o", output_template,
             "--merge-output-format", "mp4",
