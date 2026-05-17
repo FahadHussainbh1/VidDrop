@@ -2,3 +2,4 @@ flask>=2.3.0
 yt-dlp>=2024.1.0
 gunicorn
 imageio-ffmpeg
+browser-cookie3

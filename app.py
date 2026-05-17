@@ -35,7 +35,8 @@ def get_video_info(url):
         ydl_opts = {
             'ffmpeg_location': FFMPEG_PATH,
             'no_playlist': True,
-            'quiet': True
+            'quiet': True,
+            'cookiesfrombrowser': ('chrome',),  # Tells it to look for human chrome signatures
         }
         # Inject cookies if the file exists
         if os.path.exists(COOKIES_PATH):
@@ -74,6 +75,7 @@ def download_video(job_id, url, quality, fmt):
             'merge_output_format': 'mp4',
             'fixup': 'detect_or_warn',
             'progress_hooks': [progress_hook],
+            'cookiesfrombrowser': ('chrome',),  # Tells it to look for human chrome signatures
         }
 
         # Inject cookies if the file exists
