@@ -21,6 +21,28 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 jobs = {}
 
+def get_cookies_config():
+    """
+    Dynamically configures cookies.
+    Prioritizes Render environment variable string, then falls back to cookies.txt.
+    """
+    # 1. Check if Render Environment Variable is set
+    env_cookies = os.environ.get("YOUTUBE_COOKIES")
+    if env_cookies:
+        temp_cookies_path = os.path.join(BASE_DIR, "temp_cookies.txt")
+        try:
+            with open(temp_cookies_path, "w", encoding="utf-8") as f:
+                f.write(env_cookies.strip())
+            return temp_cookies_path
+        except Exception as e:
+            print(f"Error creating temp cookies file: {e}")
+
+    # 2. Fallback to repository cookies.txt file
+    if os.path.exists(COOKIES_PATH):
+        return COOKIES_PATH
+
+    return None
+
 def detect_platform(url):
     url = url.lower()
     if "youtube.com" in url or "youtu.be" in url: return "youtube"
@@ -36,11 +58,11 @@ def get_video_info(url):
             'ffmpeg_location': FFMPEG_PATH,
             'no_playlist': True,
             'quiet': True,
-            'cookiesfrombrowser': ('chrome',),  # Tells it to look for human chrome signatures
         }
-        # Inject cookies if the file exists
-        if os.path.exists(COOKIES_PATH):
-            ydl_opts['cookiefile'] = COOKIES_PATH
+        
+        cookie_file = get_cookies_config()
+        if cookie_file:
+            ydl_opts['cookiefile'] = cookie_file
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             data = ydl.extract_info(url, download=False)
@@ -59,7 +81,6 @@ def download_video(job_id, url, quality, fmt):
         jobs[job_id]["status"] = "downloading"
         output_template = os.path.join(DOWNLOAD_DIR, f"{job_id}_%(title).80s.%(ext)s")
 
-        # Custom progress hook to update our job status dynamically
         def progress_hook(d):
             if d['status'] == 'downloading':
                 total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
@@ -67,7 +88,6 @@ def download_video(job_id, url, quality, fmt):
                 if total > 0:
                     jobs[job_id]["progress"] = round((downloaded / total) * 100, 2)
 
-        # Main direct configuration dictionary for yt_dlp
         ydl_opts = {
             'ffmpeg_location': FFMPEG_PATH,
             'no_playlist': True,
@@ -75,14 +95,12 @@ def download_video(job_id, url, quality, fmt):
             'merge_output_format': 'mp4',
             'fixup': 'detect_or_warn',
             'progress_hooks': [progress_hook],
-            'cookiesfrombrowser': ('chrome',),  # Tells it to look for human chrome signatures
         }
 
-        # Inject cookies if the file exists
-        if os.path.exists(COOKIES_PATH):
-            ydl_opts['cookiefile'] = COOKIES_PATH
+        cookie_file = get_cookies_config()
+        if cookie_file:
+            ydl_opts['cookiefile'] = cookie_file
 
-        # Select target quality layouts cleanly
         if quality == "best":
             ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best'
         elif quality == "audio":
@@ -95,11 +113,9 @@ def download_video(job_id, url, quality, fmt):
         else:
             ydl_opts['format'] = 'best'
 
-        # Execute direct inline download
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        # Scan and rename downloaded items safely for browser compatibility
         for f in os.listdir(DOWNLOAD_DIR):
             if f.startswith(job_id):
                 old_path = os.path.join(DOWNLOAD_DIR, f)
@@ -133,7 +149,7 @@ def video_info():
 def start_download():
     data = request.json
     job_id = str(uuid.uuid4())[:8]
-    jobs[job_id] = {"status": "queued", "progress": 0}  # Typo fixed right here!
+    jobs[job_id] = {"status": "queued", "progress": 0}
     threading.Thread(target=download_video, args=(job_id, data['url'], data.get('quality'), data.get('format'))).start()
     return jsonify({"job_id": job_id})
 
