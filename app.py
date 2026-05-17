@@ -12,6 +12,7 @@ app = Flask(__name__)
 # This ensures the script always knows exactly where it is running from
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
+COOKIES_PATH = os.path.join(BASE_DIR, "cookies.txt")
 
 # Automatically fetches the correct built-in FFmpeg executable file path
 FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
@@ -36,6 +37,10 @@ def get_video_info(url):
             'no_playlist': True,
             'quiet': True
         }
+        # Inject cookies if the file exists
+        if os.path.exists(COOKIES_PATH):
+            ydl_opts['cookiefile'] = COOKIES_PATH
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             data = ydl.extract_info(url, download=False)
             if data:
@@ -71,6 +76,10 @@ def download_video(job_id, url, quality, fmt):
             'progress_hooks': [progress_hook],
         }
 
+        # Inject cookies if the file exists
+        if os.path.exists(COOKIES_PATH):
+            ydl_opts['cookiefile'] = COOKIES_PATH
+
         # Select target quality layouts cleanly
         if quality == "best":
             ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best'
@@ -84,7 +93,7 @@ def download_video(job_id, url, quality, fmt):
         else:
             ydl_opts['format'] = 'best'
 
-        # Execute direct inline downpour
+        # Execute direct inline download
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
@@ -122,7 +131,7 @@ def video_info():
 def start_download():
     data = request.json
     job_id = str(uuid.uuid4())[:8]
-    jobs[job_id] = {"status": "queued", "progress": 0}
+    jobs[job_id] = {"status"] = "queued", "progress": 0}
     threading.Thread(target=download_video, args=(job_id, data['url'], data.get('quality'), data.get('format'))).start()
     return jsonify({"job_id": job_id})
 
