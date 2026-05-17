@@ -131,7 +131,7 @@ def video_info():
 def start_download():
     data = request.json
     job_id = str(uuid.uuid4())[:8]
-    jobs[job_id] = {"status"] = "queued", "progress": 0}
+    jobs[job_id] = {"status": "queued", "progress": 0}  # Typo fixed right here!
     threading.Thread(target=download_video, args=(job_id, data['url'], data.get('quality'), data.get('format'))).start()
     return jsonify({"job_id": job_id})
 
