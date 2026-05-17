@@ -1,14 +1,11 @@
 from flask import Flask, request, jsonify, send_from_directory, render_template
-import subprocess
 import os
 import re
 import uuid
 import threading
-import time
 import json
-import shutil  # Added to find ffmpeg automatically!
-# New indestructible setup
 import imageio_ffmpeg
+import yt_dlp
 
 app = Flask(__name__)
 
@@ -16,9 +13,7 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 
-# --- DYNAMIC FFMPEG CONFIGURATION ---
-# On Windows, if ffmpeg.exe is in your project folder, it finds it.
-# On Render (Linux), it will automatically locate the server's built-in 'ffmpeg'.
+# Automatically fetches the correct built-in FFmpeg executable file path
 FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -36,18 +31,19 @@ def detect_platform(url):
 
 def get_video_info(url):
     try:
-        # Pass the dynamic path directly to yt-dlp
-        result = subprocess.run(
-            [shutil.which("python3") or "python", "-m", "yt_dlp", "--ffmpeg-location", FFMPEG_PATH, "--dump-json", "--no-playlist", url],
-            capture_output=True, text=True, timeout=30, errors='replace'
-        )
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            return {
-                "title": data.get("title", "Video"),
-                "thumbnail": data.get("thumbnail", ""),
-                "formats": [{"ext": f.get("ext"), "resolution": f.get("resolution")} for f in data.get("formats", [])]
-            }
+        ydl_opts = {
+            'ffmpeg_location': FFMPEG_PATH,
+            'no_playlist': True,
+            'quiet': True
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            data = ydl.extract_info(url, download=False)
+            if data:
+                return {
+                    "title": data.get("title", "Video"),
+                    "thumbnail": data.get("thumbnail", ""),
+                    "formats": [{"ext": f.get("ext"), "resolution": f.get("resolution")} for f in data.get("formats", [])]
+                }
     except Exception as e:
         print(f"Info Error: {e}")
     return None
@@ -55,62 +51,63 @@ def get_video_info(url):
 def download_video(job_id, url, quality, fmt):
     try:
         jobs[job_id]["status"] = "downloading"
-        
-        # Template uses job_id to keep it unique
         output_template = os.path.join(DOWNLOAD_DIR, f"{job_id}_%(title).80s.%(ext)s")
 
-        cmd = [
-           shutil.which("python3") or "python", "-m", "yt_dlp", 
-           "--ffmpeg-location", FFMPEG_PATH,  # Uses the clean, dynamic path
-            "--no-playlist", 
-            "-o", output_template,
-            "--merge-output-format", "mp4",
-            "--fixup", "detect_or_warn", 
-            url
-        ]
+        # Custom progress hook to update our job status dynamically
+        def progress_hook(d):
+            if d['status'] == 'downloading':
+                total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
+                downloaded = d.get('downloaded_bytes', 0)
+                if total > 0:
+                    jobs[job_id]["progress"] = round((downloaded / total) * 100, 2)
 
-        # Quality Logic
+        # Main direct configuration dictionary for yt_dlp
+        ydl_opts = {
+            'ffmpeg_location': FFMPEG_PATH,
+            'no_playlist': True,
+            'outtmpl': output_template,
+            'merge_output_format': 'mp4',
+            'fixup': 'detect_or_warn',
+            'progress_hooks': [progress_hook],
+        }
+
+        # Select target quality layouts cleanly
         if quality == "best":
-            cmd += ["-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best"]
+            ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best'
         elif quality == "audio":
-            cmd += ["-f", "bestaudio", "-x", "--audio-format", "mp3"]
+            ydl_opts['format'] = 'bestaudio'
+            ydl_opts['postprocessors'] = [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }]
         else:
-            cmd += ["-f", "best"]
+            ydl_opts['format'] = 'best'
 
-        cmd.append(url)
+        # Execute direct inline downpour
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
 
-        process = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors='replace'
-        )
-
-        for line in process.stdout:
-            print(f"DEBUG: {line.strip()}") 
-            prog_match = re.search(r'(\d+\.?\d*)%', line)
-            if prog_match:
-                jobs[job_id]["progress"] = float(prog_match.group(1))
-
-        process.wait()
-
-        if process.returncode == 0:
-            for f in os.listdir(DOWNLOAD_DIR):
-                if f.startswith(job_id):
-                    old_path = os.path.join(DOWNLOAD_DIR, f)
-                    safe_name = re.sub(r'[^\w\d.]', '_', f)
-                    new_path = os.path.join(DOWNLOAD_DIR, safe_name)
-                    
-                    if os.path.exists(new_path): os.remove(new_path) 
-                    os.rename(old_path, new_path)
-                    
-                    jobs[job_id]["status"] = "done"
-                    jobs[job_id]["filename"] = safe_name
-                    jobs[job_id]["download_url"] = f"/file/{safe_name}"
-                    return
+        # Scan and rename downloaded items safely for browser compatibility
+        for f in os.listdir(DOWNLOAD_DIR):
+            if f.startswith(job_id):
+                old_path = os.path.join(DOWNLOAD_DIR, f)
+                safe_name = re.sub(r'[^\w\d.]', '_', f)
+                new_path = os.path.join(DOWNLOAD_DIR, safe_name)
+                
+                if os.path.exists(new_path): os.remove(new_path) 
+                os.rename(old_path, new_path)
+                
+                jobs[job_id]["status"] = "done"
+                jobs[job_id]["filename"] = safe_name
+                jobs[job_id]["download_url"] = f"/file/{safe_name}"
+                return
 
         jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = "Download failed. Check terminal for FFmpeg errors."
+        jobs[job_id]["error"] = "File processing complete but target output file missing."
     except Exception as e:
         jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = str(e)
+        jobs[job_id]["error"] = f"Download failed: {str(e)}"
 
 @app.route("/")
 def index(): return render_template("index.html")
@@ -119,7 +116,7 @@ def index(): return render_template("index.html")
 def video_info():
     url = request.json.get("url", "")
     info = get_video_info(url)
-    return jsonify({"info": info}) if info else jsonify({"error": "Failed"}), 400
+    return jsonify({"info": info}) if info else jsonify({"error": "Failed to fetch info"}), 400
 
 @app.route("/api/download", methods=["POST"])
 def start_download():
