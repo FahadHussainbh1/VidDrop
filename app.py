@@ -9,16 +9,37 @@ import yt_dlp
 
 app = Flask(__name__)
 
-# This ensures the script always knows exactly where it is running from
+# System paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
+COOKIES_PATH = os.path.join(BASE_DIR, "cookies.txt")
 
-# Automatically fetches the correct built-in FFmpeg executable file path
+# Fetches built-in FFmpeg path cleanly
 FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 jobs = {}
+
+def get_cookies_config():
+    """
+    Checks if cookies are provided via Render Environment Variables.
+    If yes, writes them to a temporary file for yt-dlp to use.
+    """
+    env_cookies = os.environ.get("MY_SERVER_COOKIES")
+    if env_cookies:
+        temp_cookies_path = os.path.join(BASE_DIR, "temp_cookies.txt")
+        try:
+            with open(temp_cookies_path, "w", encoding="utf-8") as f:
+                f.write(env_cookies.strip())
+            return temp_cookies_path
+        except Exception as e:
+            print(f"Error writing temporary cookies: {e}")
+            
+    if os.path.exists(COOKIES_PATH):
+        return COOKIES_PATH
+        
+    return None
 
 def detect_platform(url):
     url = url.lower()
@@ -35,14 +56,11 @@ def get_video_info(url):
             'ffmpeg_location': FFMPEG_PATH,
             'no_playlist': True,
             'quiet': True,
-            # Force yt-dlp to use the Android mobile clients to bypass bot blocks
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'web'],
-                    'skip': ['webpage']
-                }
-            }
         }
+        
+        cookie_file = get_cookies_config()
+        if cookie_file:
+            ydl_opts['cookiefile'] = cookie_file
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             data = ydl.extract_info(url, download=False)
@@ -75,16 +93,13 @@ def download_video(job_id, url, quality, fmt):
             'merge_output_format': 'mp4',
             'fixup': 'detect_or_warn',
             'progress_hooks': [progress_hook],
-            # Force mobile phone signatures to bypass the data center IP ban
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'web'],
-                    'skip': ['webpage']
-                }
-            }
         }
 
-        # Select target quality layouts and guarantee audio integration
+        cookie_file = get_cookies_config()
+        if cookie_file:
+            ydl_opts['cookiefile'] = cookie_file
+
+        # Quality parsing with working audio stitching rules
         if quality == "best":
             ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best'
         elif quality == "audio":
@@ -95,7 +110,6 @@ def download_video(job_id, url, quality, fmt):
                 'preferredquality': '192',
             }]
         else:
-            # FIX: Force download of best video AND best audio combined together
             ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
