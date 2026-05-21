@@ -3,7 +3,36 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>VidDrop — Download Any Video</title>
+  
+  <title>VidDrop — Download Any Video Free (Instagram, TikTok, FB, Twitter)</title>
+  <meta name="description" content="VidDrop is the fastest free online video downloader. Download HD videos from Instagram, TikTok, Facebook, Twitter, Pinterest, and more instantly with no registration required."/>
+  <meta name="keywords" content="video downloader, download instagram reels, tiktok downloader no watermark, facebook video download online, twitter video saver, free media converter, fast clip grabber, viddrop"/>
+  <meta name="robots" content="index, follow, max-image-preview:large"/>
+  <meta name="author" content="VidDrop Team"/>
+  
+  <meta property="og:type" content="website"/>
+  <meta property="og:title" content="VidDrop — Download Any Video in Seconds Online"/>
+  <meta property="og:description" content="Lightning-fast social media clip downloading engine. Save high-quality MP4 or MP3 audio from any device seamlessly."/>
+  <meta property="og:site_name" content="VidDrop"/>
+  
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "VidDrop",
+    "url": "https://viddrop.onrender.com",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "All",
+    "browserRequirements": "Requires HTML5 Support",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "description": "Lightning-fast tool to convert and download media clips across multiple major web platforms instantly."
+  }
+  </script>
+
   <link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
   <style>
     :root {
@@ -317,6 +346,47 @@
     .tip h3 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
     .tip p { font-size: 13px; color: var(--muted); line-height: 1.5; }
 
+    /* ─── INJECTED UPDATE: FEEDBACK SECTION STYLES ─── */
+    .feedback-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 30px;
+      margin-top: 40px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+      animation: fadeUp 0.8s ease both 0.4s;
+    }
+    .feedback-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 20px; font-weight: 700; margin-bottom: 8px;
+    }
+    .feedback-desc {
+      font-size: 13px; color: var(--muted); margin-bottom: 20px;
+    }
+    .feedback-form {
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .feedback-textarea {
+      width: 100%; min-height: 100px; max-height: 180px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px;
+      color: var(--text); font-size: 14px; font-family: inherit;
+      outline: none; resize: vertical; transition: all 0.2s;
+    }
+    .feedback-textarea:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px rgba(255,101,132,0.15); }
+    .btn-feedback {
+      align-self: flex-end; height: 46px; padding: 0 24px;
+      background: linear-gradient(135deg, var(--accent2), #ff8a75);
+      border: none; border-radius: 12px;
+      color: #fff; font-size: 14px; font-weight: 600; font-family: inherit;
+      cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 6px 20px rgba(255,101,132,0.25);
+    }
+    .btn-feedback:hover { transform: translateY(-1px); box-shadow: 0 10px 25px rgba(255,101,132,0.4); }
+    #feedbackStatus {
+      font-size: 13px; margin-top: 10px; display: none; text-align: center;
+    }
+
     /* ─── Footer ─── */
     footer {
       text-align: center; padding: 48px 0 32px;
@@ -338,6 +408,7 @@
       .btn-download { width: 100%; justify-content: center; }
       h1 { letter-spacing: -1px; }
       .tips { grid-template-columns: 1fr; }
+      .btn-feedback { width: 100%; }
     }
 
     /* ─── Spinner ─── */
@@ -383,10 +454,9 @@
         <span></span> Lightning Fast Downloads
       </div>
       <h1>Download any video<br><span class="line2">in seconds.</span></h1>
-      <p class="hero-sub">Paste a link from YouTube, Instagram, Facebook, Twitter, Pinterest & more — we handle the rest.</p>
+      <p class="hero-sub">Paste a link from Instagram, Facebook, Twitter, Pinterest & more — we handle the rest.</p>
     </div>
 
-    <!-- Platform Chips -->
     <div class="platforms">
       <div class="chip yt"><span class="dot"></span> YouTube</div>
       <div class="chip ig"><span class="dot"></span> Instagram</div>
@@ -398,7 +468,6 @@
       <div class="chip vm"><span class="dot"></span> Vimeo</div>
     </div>
 
-    <!-- Main Card -->
     <div class="card">
       <label class="input-label">Paste Video URL</label>
       <div class="input-row">
@@ -409,10 +478,8 @@
         <button class="btn-paste" id="pasteBtn">📋 Paste</button>
       </div>
 
-      <!-- Detected platform badge -->
       <div id="platformBadge"></div>
 
-      <!-- Video Preview -->
       <div id="videoPreview">
         <div class="preview-inner">
           <img class="preview-thumb" id="previewThumb" src="" alt="thumbnail" />
@@ -444,7 +511,6 @@
         </button>
       </div>
 
-      <!-- Progress -->
       <div id="progressArea">
         <div class="progress-label">
           <span class="status-txt" id="statusText">Initializing…</span>
@@ -455,7 +521,6 @@
         </div>
       </div>
 
-      <!-- Result -->
       <div id="resultCard">
         <div class="result-title">✅ Download ready!</div>
         <div class="result-filename" id="resultFilename"></div>
@@ -467,14 +532,22 @@
         </a>
       </div>
 
-      <!-- Error -->
       <div id="errorMsg">
         <div class="error-title">⚠️ Download Failed</div>
         <div id="errorTxt"></div>
       </div>
     </div>
 
-    <!-- Tips -->
+    <div class="feedback-card">
+      <div class="feedback-title">Share Your Feedback</div>
+      <div class="feedback-desc">Encountered an issue or have a suggestion? Let us know to keep VidDrop improving!</div>
+      <div class="feedback-form">
+        <textarea id="feedbackInput" class="feedback-textarea" placeholder="Type your experience, feature request, or report a bug here..."></textarea>
+        <button class="btn-feedback" id="sendFeedbackBtn" onclick="submitFeedback()">Submit Feedback</button>
+      </div>
+      <div id="feedbackStatus"></div>
+    </div>
+
     <div class="tips">
       <div class="tip">
         <div class="tip-icon">🔒</div>
@@ -502,162 +575,29 @@
   <script>
     let pollInterval = null;
 
-    // ─── Paste Button ───
-    document.getElementById('pasteBtn').addEventListener('click', async () => {
-      try {
-        const text = await navigator.clipboard.readText();
-        document.getElementById('urlInput').value = text;
-        detectPlatform(text);
-      } catch(e) {
-        document.getElementById('urlInput').focus();
-      }
-    });
+    // ─── INJECTED UPDATE: SUBMIT FEEDBACK SCRIPT ───
+    async function submitFeedback() {
+      const feedbackText = document.getElementById('feedbackInput').value.trim();
+      const statusElement = document.getElementById('feedbackStatus');
+      const feedbackBtn = document.getElementById('sendFeedbackBtn');
 
-    // ─── Auto detect on input ───
-    document.getElementById('urlInput').addEventListener('input', (e) => {
-      detectPlatform(e.target.value.trim());
-    });
-
-    const platformNames = {
-      youtube: '▶️ YouTube detected', instagram: '📸 Instagram detected',
-      facebook: '🔵 Facebook detected', twitter: '🐦 Twitter / X detected',
-      pinterest: '📌 Pinterest detected', tiktok: '🎵 TikTok detected',
-      reddit: '🤖 Reddit detected', vimeo: '🎬 Vimeo detected',
-      dailymotion: '🎥 Dailymotion detected', other: '🌐 URL detected'
-    };
-
-    function detectPlatform(url) {
-      const badge = document.getElementById('platformBadge');
-      resetState();
-      if (!url || !url.startsWith('http')) {
-        badge.style.display = 'none'; return;
-      }
-      const u = url.toLowerCase();
-      let p = 'other';
-      if (u.includes('youtube') || u.includes('youtu.be')) p = 'youtube';
-      else if (u.includes('instagram')) p = 'instagram';
-      else if (u.includes('facebook') || u.includes('fb.watch')) p = 'facebook';
-      else if (u.includes('twitter') || u.includes('x.com')) p = 'twitter';
-      else if (u.includes('pinterest') || u.includes('pin.it')) p = 'pinterest';
-      else if (u.includes('tiktok')) p = 'tiktok';
-      else if (u.includes('reddit') || u.includes('redd.it')) p = 'reddit';
-      else if (u.includes('vimeo')) p = 'vimeo';
-
-      badge.textContent = platformNames[p] || '🌐 URL detected';
-      badge.style.display = 'flex';
-    }
-
-    function resetState() {
-      document.getElementById('progressArea').style.display = 'none';
-      document.getElementById('resultCard').style.display = 'none';
-      document.getElementById('errorMsg').style.display = 'none';
-      document.getElementById('videoPreview').style.display = 'none';
-      if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-    }
-
-    function setLoading(val) {
-      const btn = document.getElementById('downloadBtn');
-      btn.disabled = val;
-      btn.innerHTML = val
-        ? '<div class="spinner"></div> Processing…'
-        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
-    }
-
-    async function startDownload() {
-      const url = document.getElementById('urlInput').value.trim();
-      if (!url) {
-        document.getElementById('urlInput').focus();
-        document.getElementById('urlInput').style.borderColor = 'var(--accent2)';
-        setTimeout(() => document.getElementById('urlInput').style.borderColor = '', 1500);
+      if (!feedbackText) {
+        document.getElementById('feedbackInput').focus();
         return;
       }
 
-      resetState();
-      setLoading(true);
-
-      const quality = document.getElementById('qualitySelect').value;
-
-      // Show progress area
-      const pa = document.getElementById('progressArea');
-      pa.style.display = 'block';
-      document.getElementById('statusText').textContent = 'Starting download…';
-      document.getElementById('progressPct').textContent = '';
-      document.getElementById('progressFill').style.width = '0%';
-      document.getElementById('progressFill').classList.add('indeterminate');
+      feedbackBtn.disabled = true;
+      feedbackBtn.textContent = 'Sending…';
 
       try {
-        const res = await fetch('/api/download', {
+        const response = await fetch('/api/feedback', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ url, quality })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: feedbackText })
         });
-        const data = await res.json();
+        const data = await response.json();
 
-        if (data.error) throw new Error(data.error);
-
-        const jobId = data.job_id;
-        pollInterval = setInterval(() => pollStatus(jobId), 800);
-
-      } catch(err) {
-        setLoading(false);
-        showError(err.message);
-      }
-    }
-
-    async function pollStatus(jobId) {
-      try {
-        const res = await fetch(`/api/status/${jobId}`);
-        const data = await res.json();
-
-        const fill = document.getElementById('progressFill');
-        const statusTxt = document.getElementById('statusText');
-        const pct = document.getElementById('progressPct');
-
-        if (data.status === 'queued') {
-          statusTxt.textContent = 'Queued…';
-        } else if (data.status === 'downloading') {
-          fill.classList.remove('indeterminate');
-          fill.style.width = data.progress + '%';
-          pct.textContent = Math.round(data.progress) + '%';
-          statusTxt.textContent = '⬇ Downloading…';
-        } else if (data.status === 'done') {
-          clearInterval(pollInterval); pollInterval = null;
-          fill.classList.remove('indeterminate');
-          fill.style.width = '100%';
-          pct.textContent = '100%';
-          statusTxt.textContent = '✅ Complete!';
-          setLoading(false);
-          showResult(data.filename, data.download_url);
-        } else if (data.status === 'error') {
-          clearInterval(pollInterval); pollInterval = null;
-          setLoading(false);
-          showError(data.error || 'Unknown error');
-        }
-      } catch(err) {
-        clearInterval(pollInterval); pollInterval = null;
-        setLoading(false);
-        showError('Connection error. Is the server running?');
-      }
-    }
-
-    function showResult(filename, url) {
-      const rc = document.getElementById('resultCard');
-      rc.style.display = 'block';
-      document.getElementById('resultFilename').textContent = filename;
-      document.getElementById('resultLink').href = url;
-    }
-
-    function showError(msg) {
-      const em = document.getElementById('errorMsg');
-      em.style.display = 'block';
-      document.getElementById('errorTxt').textContent = msg;
-      document.getElementById('progressArea').style.display = 'none';
-    }
-
-    // Enter key support
-    document.getElementById('urlInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') startDownload();
-    });
-  </script>
-</body>
-</html>
+        statusElement.style.display = 'block';
+        if (response.ok) {
+          statusElement.style.color = 'var(--accent3)';
+          statusElement.textContent = 'Thank you! Your feedback has been recorded successfully. 👍

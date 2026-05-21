@@ -125,6 +125,21 @@ def job_status(job_id): return jsonify(jobs.get(job_id, {"error": "Not found"}))
 @app.route("/file/<path:filename>") 
 def serve_file(filename):
     return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
-
+@app.route("/api/feedback", methods=["POST"])
+def receive_feedback():
+    data = request.json
+    feedback_message = data.get("message", "").strip()
+    
+    if not feedback_message:
+        return jsonify({"error": "Feedback message cannot be empty"}), 400
+        
+    # Append feedback to a local text file inside your project structure
+    feedback_file = os.path.join(BASE_DIR, "user_feedback.txt")
+    try:
+        with open(feedback_file, "a", encoding="utf-8") as f:
+            f.write(f"--- New Feedback ---\n{feedback_message}\n\n")
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to save feedback: {str(e)}"}), 500
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
