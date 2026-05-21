@@ -12,7 +12,6 @@ app = Flask(__name__)
 # System paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
-COOKIES_PATH = os.path.join(BASE_DIR, "cookies.txt")
 
 # Fetches built-in FFmpeg path cleanly
 FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
@@ -20,26 +19,6 @@ FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 jobs = {}
-
-def get_cookies_config():
-    """
-    Checks if cookies are provided via Render Environment Variables.
-    If yes, writes them to a temporary file for yt-dlp to use.
-    """
-    env_cookies = os.environ.get("MY_SERVER_COOKIES")
-    if env_cookies:
-        temp_cookies_path = os.path.join(BASE_DIR, "temp_cookies.txt")
-        try:
-            with open(temp_cookies_path, "w", encoding="utf-8") as f:
-                f.write(env_cookies.strip())
-            return temp_cookies_path
-        except Exception as e:
-            print(f"Error writing temporary cookies: {e}")
-            
-    if os.path.exists(COOKIES_PATH):
-        return COOKIES_PATH
-        
-    return None
 
 def detect_platform(url):
     url = url.lower()
@@ -56,11 +35,14 @@ def get_video_info(url):
             'ffmpeg_location': FFMPEG_PATH,
             'no_playlist': True,
             'quiet': True,
+            # Emulate an Android TV device client to completely bypass the JS runtime requirement
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['tvembedded', 'android'],
+                    'skip': ['webpage']
+                }
+            }
         }
-        
-        cookie_file = get_cookies_config()
-        if cookie_file:
-            ydl_opts['cookiefile'] = cookie_file
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             data = ydl.extract_info(url, download=False)
@@ -93,17 +75,17 @@ def download_video(job_id, url, quality, fmt):
             'merge_output_format': 'mp4',
             'fixup': 'detect_or_warn',
             'progress_hooks': [progress_hook],
+            # TV-Embedded client bypasses both the bot blocks and the missing local JavaScript engine
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['tvembedded', 'android'],
+                    'skip': ['webpage']
+                }
+            }
         }
 
-        cookie_file = get_cookies_config()
-        if cookie_file:
-            ydl_opts['cookiefile'] = cookie_file
-
-        # Bulletproof formatting fallbacks for all streaming formats
-        # CRITICAL FIX: Fallback sequence that guarantees download success on restricted server IPs
-        if quality == "best":
-            ydl_opts['format'] = 'bestvideo+bestaudio/bestvideo/bestaudio/best'
-        elif quality == "audio":
+        # Safe stream resolution fallback hierarchy
+        if quality == "audio":
             ydl_opts['format'] = 'bestaudio/best'
             ydl_opts['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
@@ -112,6 +94,7 @@ def download_video(job_id, url, quality, fmt):
             }]
         else:
             ydl_opts['format'] = 'bestvideo+bestaudio/bestvideo/bestaudio/best'
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
