@@ -99,19 +99,19 @@ def download_video(job_id, url, quality, fmt):
         if cookie_file:
             ydl_opts['cookiefile'] = cookie_file
 
-        # Quality parsing with working audio stitching rules
-        # Quality parsing with flexible format selection and mandatory MP4 merging
+        # UPDATED FORMAT RULES: Uses reliable fallbacks to prevent "format not available" crashes
         if quality == "best":
             ydl_opts['format'] = 'bestvideo+bestaudio/best'
         elif quality == "audio":
-            ydl_opts['format'] = 'bestaudio'
+            ydl_opts['format'] = 'bestaudio/best'
             ydl_opts['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }]
         else:
-            ydl_opts['format'] = 'bestvideo+bestaudio/best'
+            ydl_opts['format'] = 'best'  # Safe single-stream download fallback
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
