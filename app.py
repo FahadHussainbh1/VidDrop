@@ -24,9 +24,9 @@ def detect_platform(url):
     return "other"
 
 def get_video_info(url):
-    """Fetches video metadata using high-stability global mirror endpoints"""
+    """Fetches video validation tracking details securely via global API"""
     try:
-        # Standard strict payload configuration
+        # Utilizing the stable primary root processing path
         api_url = "https://api.cobalt.tools/"
         headers = {
             "Accept": "application/json",
@@ -38,7 +38,7 @@ def get_video_info(url):
         }
         
         response = requests.post(api_url, json=payload, headers=headers, timeout=10)
-        if response.status_code == 200:
+        if response.status_code == 200 or response.status_code == 201:
             return {
                 "title": "Fetched Global Video",
                 "thumbnail": "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?q=80&w=200",
@@ -49,17 +49,18 @@ def get_video_info(url):
     return None
 
 def download_worker(job_id, url, quality):
-    """Downloads processed streams safely into Render environment storage"""
+    """Downloads streaming files directly from the processing proxy into storage"""
     try:
         jobs[job_id]["status"] = "downloading"
         jobs[job_id]["progress"] = 20
         
-        # Primary endpoint tracking block
         api_url = "https://api.cobalt.tools/"
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json"
         }
+        
+        # Exact payload formatting compliant with updated engine requirements
         payload = {
             "url": url,
             "videoQuality": "720",
@@ -68,17 +69,12 @@ def download_worker(job_id, url, quality):
             
         response = requests.post(api_url, json=payload, headers=headers, timeout=15)
         
-        # Fallback processing system if primary mirror is congested
-        if response.status_code != 200:
-            fallback_url = "https://co.wuk.sh/api/json"
-            response = requests.post(fallback_url, json=payload, headers=headers, timeout=15)
-        
-        if response.status_code == 200:
+        if response.status_code == 200 or response.status_code == 201:
             data = response.json()
             stream_url = data.get("url")
             
             if not stream_url:
-                raise Exception("API did not provide an active asset stream link.")
+                raise Exception("The processing hub successfully ran but did not yield a file link.")
                 
             jobs[job_id]["progress"] = 50
             
@@ -86,7 +82,8 @@ def download_worker(job_id, url, quality):
             filename = f"{job_id}_download.{file_ext}"
             file_path = os.path.join(DOWNLOAD_DIR, filename)
             
-            file_response = requests.get(stream_url, stream=True, timeout=30)
+            # Fetch the streaming asset chunks from the engine container
+            file_response = requests.get(stream_url, stream=True, timeout=45)
             if file_response.status_code == 200:
                 with open(file_path, 'wb') as f:
                     for chunk in file_response.iter_content(chunk_size=8192):
@@ -99,7 +96,7 @@ def download_worker(job_id, url, quality):
                 jobs[job_id]["download_url"] = f"/file/{filename}"
                 return
                 
-        raise Exception(f"Processing gateway returned rejection status: {response.status_code}")
+        raise Exception(f"Processing gateway returned status verification: {response.status_code}")
         
     except Exception as e:
         jobs[job_id]["status"] = "error"
