@@ -99,7 +99,7 @@ def download_video(job_id, url, quality, fmt):
         if cookie_file:
             ydl_opts['cookiefile'] = cookie_file
 
-        # UPDATED FORMAT RULES: Uses reliable fallbacks to prevent "format not available" crashes
+        # Bulletproof formatting fallbacks for all streaming formats
         if quality == "best":
             ydl_opts['format'] = 'bestvideo+bestaudio/best'
         elif quality == "audio":
@@ -110,7 +110,7 @@ def download_video(job_id, url, quality, fmt):
                 'preferredquality': '192',
             }]
         else:
-            ydl_opts['format'] = 'best'  # Safe single-stream download fallback
+            ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
