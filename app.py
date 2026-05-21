@@ -84,6 +84,7 @@ def download_video(job_id, url, quality, fmt):
             }
         }
 
+        # Select target quality layouts and guarantee audio integration
         if quality == "best":
             ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best'
         elif quality == "audio":
@@ -94,7 +95,8 @@ def download_video(job_id, url, quality, fmt):
                 'preferredquality': '192',
             }]
         else:
-            ydl_opts['format'] = 'best'
+            # FIX: Force download of best video AND best audio combined together
+            ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
