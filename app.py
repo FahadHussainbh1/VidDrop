@@ -3,20 +3,25 @@ import os
 import re
 import uuid
 import threading
-import requests
+import json
+import imageio_ffmpeg
+import yt_dlp
 
 app = Flask(__name__)
 
 # System paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
+
+# Fetches built-in FFmpeg path cleanly
+FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
+
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 jobs = {}
 
 def detect_platform(url):
     url = url.lower()
-    if "youtube.com" in url or "youtu.be" in url: return "youtube"
     if "instagram.com" in url: return "instagram"
     if "facebook.com" in url or "fb.watch" in url: return "facebook"
     if "tiktok.com" in url: return "tiktok"
@@ -24,98 +29,98 @@ def detect_platform(url):
     return "other"
 
 def get_video_info(url):
-    """Instantly validates the input link for the frontend web interface"""
-    if not url:
-        return None
-    return {
-        "title": "Ready for Processing",
-        "thumbnail": "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?q=80&w=200",
-        "formats": [{"ext": "mp4", "resolution": "720p"}]
-    }
+    try:
+        ydl_opts = {
+            'ffmpeg_location': FFMPEG_PATH,
+            'no_playlist': True,
+            'quiet': True,
+        }
 
-def download_worker(job_id, url, quality):
-    """Downloads processing streams directly through an open public conversion pipeline"""
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            data = ydl.extract_info(url, download=False)
+            if data:
+                return {
+                    "title": data.get("title", "Video"),
+                    "thumbnail": data.get("thumbnail", ""),
+                    "formats": [{"ext": f.get("ext"), "resolution": f.get("resolution")} for f in data.get("formats", [])]
+                }
+    except Exception as e:
+        print(f"Info Error: {e}")
+    return None
+
+def download_video(job_id, url, quality, fmt):
     try:
         jobs[job_id]["status"] = "downloading"
-        jobs[job_id]["progress"] = 30
-        
-        # Using a specialized public ingestion gateway that doesn't filter out hosting providers
-        api_url = f"https://api.allorigins.win/get?url={requests.utils.quote(url)}"
-        
-        # Universal highly responsive alternative processing engine layout
-        fallback_api = "https://pyapi.download/api/info"
-        payload = {
-            "url": url,
-            "format": "mp3" if quality == "audio" else "mp4"
+        output_template = os.path.join(DOWNLOAD_DIR, f"{job_id}_%(title).80s.%(ext)s")
+
+        def progress_hook(d):
+            if d['status'] == 'downloading':
+                total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
+                downloaded = d.get('downloaded_bytes', 0)
+                if total > 0:
+                    jobs[job_id]["progress"] = round((downloaded / total) * 100, 2)
+
+        ydl_opts = {
+            'ffmpeg_location': FFMPEG_PATH,
+            'no_playlist': True,
+            'outtmpl': output_template,
+            'merge_output_format': 'mp4',
+            'fixup': 'detect_or_warn',
+            'progress_hooks': [progress_hook],
         }
-        
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        
-        # Fetch clean asset data streams 
-        response = requests.post(fallback_api, json=payload, headers=headers, timeout=15)
-        
-        if response.status_code == 200:
-            data = response.json()
-            # Dynamic matching extraction sequence for the active asset URL stream
-            stream_url = data.get("url") or data.get("link") or data.get("download")
-            
-            if not stream_url:
-                raise Exception("The processing hub responded successfully but did not generate a direct asset link.")
+
+        if quality == "audio":
+            ydl_opts['format'] = 'bestaudio/best'
+            ydl_opts['postprocessors'] = [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }]
+        else:
+            ydl_opts['format'] = 'bestvideo+bestaudio/bestvideo/bestaudio/best'
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+
+        for f in os.listdir(DOWNLOAD_DIR):
+            if f.startswith(job_id):
+                old_path = os.path.join(DOWNLOAD_DIR, f)
+                safe_name = re.sub(r'[^\w\d.]', '_', f)
+                new_path = os.path.join(DOWNLOAD_DIR, safe_name)
                 
-            jobs[job_id]["progress"] = 60
-            
-            file_ext = "mp3" if quality == "audio" else "mp4"
-            filename = f"{job_id}_download.{file_ext}"
-            file_path = os.path.join(DOWNLOAD_DIR, filename)
-            
-            # Stream the processed file segments down to Render's container drive space
-            file_response = requests.get(stream_url, stream=True, timeout=45)
-            if file_response.status_code == 200:
-                with open(file_path, 'wb') as f:
-                    for chunk in file_response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                            
+                if os.path.exists(new_path): os.remove(new_path) 
+                os.rename(old_path, new_path)
+                
                 jobs[job_id]["status"] = "done"
-                jobs[job_id]["progress"] = 100
-                jobs[job_id]["filename"] = filename
-                jobs[job_id]["download_url"] = f"/file/{filename}"
+                jobs[job_id]["filename"] = safe_name
+                jobs[job_id]["download_url"] = f"/file/{safe_name}"
                 return
-                
-        raise Exception(f"The conversion system returned rejection message flag: {response.status_code}")
-        
+
+        jobs[job_id]["status"] = "error"
+        jobs[job_id]["error"] = "File processing complete but target output file missing."
     except Exception as e:
         jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = f"Global Engine Error: {str(e)}"
+        jobs[job_id]["error"] = f"Download failed: {str(e)}"
 
 @app.route("/")
-def index(): 
-    return render_template("index.html")
+def index(): return render_template("index.html")
 
 @app.route("/api/info", methods=["POST"])
 def video_info():
     url = request.json.get("url", "")
     info = get_video_info(url)
-    return jsonify({"info": info}) if info else jsonify({"error": "Failed to fetch info globally"}), 400
+    return jsonify({"info": info}) if info else jsonify({"error": "Failed to fetch info"}), 400
 
 @app.route("/api/download", methods=["POST"])
 def start_download():
     data = request.json
     job_id = str(uuid.uuid4())[:8]
     jobs[job_id] = {"status": "queued", "progress": 0}
-    
-    threading.Thread(
-        target=download_worker, 
-        args=(job_id, data['url'], data.get('quality'))
-    ).start()
-    
+    threading.Thread(target=download_video, args=(job_id, data['url'], data.get('quality'), data.get('format'))).start()
     return jsonify({"job_id": job_id})
 
 @app.route("/api/status/<job_id>")
-def job_status(job_id): 
-    return jsonify(jobs.get(job_id, {"error": "Job tracking signature missing"}))
+def job_status(job_id): return jsonify(jobs.get(job_id, {"error": "Not found"}))
 
 @app.route("/file/<path:filename>") 
 def serve_file(filename):
