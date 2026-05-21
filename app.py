@@ -13,6 +13,9 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 
+# Master authenticated visitor tracking token from your active session
+VISITOR_DATA = "CgtYRWhOMTlPY0NuNCiL17zQBjIKCgJQSxIEGgAgSWLfAgrcAjE4LllUPU5pLWotLUJ0bDcxQm9OSmc4V2Q3V19DcEpuVkRvNlg5SkE3Njk3cC1JMDU5UGhsbDRlRjlhNTJ1UFpvZF9JUUdpYlJuNkx5LXVmcTJCV1hmQlpabW1IN1ljVkxrLXd5WTBNRDlnX09tVWZicElaQmxtcEh1aDlsVW5DSF9ZeExhYTkzLTZRaEpPLWxoV2ZDdjZsLW5hYWxPdHdDLUN2bi13aEZOVnNENzEtVlM1VVpwR01ZVnZvRGVhRERvSnF6WlhRN0E4aE9pUm0yNWszNU5scjFkT1pMeDRHU0docXZJaVJxTDBiNWg5M1c1bFdRSkpGYTUtOHBnb2tORElOUmYzVzEwVm1keXVfM3FSSEEzY0NwcVVXTnJPRUxrZTRWV3RXZEZ5OENVSVJaMlE4ZlBUTTZtQ1g1Yk1pMk1tbmItbU5XNEtoVG5sQ090VmliTHU0ZXZhUQ%3D%3D"
+
 # Fetches built-in FFmpeg path cleanly
 FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 
@@ -35,11 +38,11 @@ def get_video_info(url):
             'ffmpeg_location': FFMPEG_PATH,
             'no_playlist': True,
             'quiet': True,
-            # Emulate an Android TV device client to completely bypass the JS runtime requirement
+            # Pass browser payload markers to authenticate the data center IP
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['tvembedded', 'android'],
-                    'skip': ['webpage']
+                    'player_client': ['web', 'android'],
+                    'visitor_data': VISITOR_DATA
                 }
             }
         }
@@ -75,11 +78,11 @@ def download_video(job_id, url, quality, fmt):
             'merge_output_format': 'mp4',
             'fixup': 'detect_or_warn',
             'progress_hooks': [progress_hook],
-            # TV-Embedded client bypasses both the bot blocks and the missing local JavaScript engine
+            # Pass browser payload markers to authenticate the data center IP
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['tvembedded', 'android'],
-                    'skip': ['webpage']
+                    'player_client': ['web', 'android'],
+                    'visitor_data': VISITOR_DATA
                 }
             }
         }
