@@ -24,25 +24,24 @@ def detect_platform(url):
     return "other"
 
 def get_video_info(url):
-    """Fetches video metadata using a reliable global mirror API"""
+    """Fetches video metadata using high-stability global mirror endpoints"""
     try:
-        # We use a public processing endpoint that handles data center blocks
-        api_url = "https://api.cobalt.tools/api/json"
+        # Standard strict payload configuration
+        api_url = "https://api.cobalt.tools/"
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json"
         }
         payload = {
             "url": url,
-            "vQuality": "720"  # Standard high quality
+            "videoQuality": "720"
         }
         
         response = requests.post(api_url, json=payload, headers=headers, timeout=10)
         if response.status_code == 200:
-            # If the API immediately returns a direct stream link
             return {
                 "title": "Fetched Global Video",
-                "thumbnail": "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?q=80&w=200", # Universal placeholder
+                "thumbnail": "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?q=80&w=200",
                 "formats": [{"ext": "mp4", "resolution": "720p"}]
             }
     except Exception as e:
@@ -50,36 +49,39 @@ def get_video_info(url):
     return None
 
 def download_worker(job_id, url, quality):
-    """Downloads the processed stream from the API to Render storage"""
+    """Downloads processed streams safely into Render environment storage"""
     try:
         jobs[job_id]["status"] = "downloading"
         jobs[job_id]["progress"] = 20
         
-        api_url = "https://api.cobalt.tools/api/json"
+        # Primary endpoint tracking block
+        api_url = "https://api.cobalt.tools/"
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json"
         }
         payload = {
             "url": url,
-            "vQuality": "720"
+            "videoQuality": "720",
+            "downloadMode": "audio" if quality == "audio" else "video"
         }
-        
-        if quality == "audio":
-            payload["isAudioOnly"] = True
             
         response = requests.post(api_url, json=payload, headers=headers, timeout=15)
+        
+        # Fallback processing system if primary mirror is congested
+        if response.status_code != 200:
+            fallback_url = "https://co.wuk.sh/api/json"
+            response = requests.post(fallback_url, json=payload, headers=headers, timeout=15)
         
         if response.status_code == 200:
             data = response.json()
             stream_url = data.get("url")
             
             if not stream_url:
-                raise Exception("API did not return a valid download URL stream.")
+                raise Exception("API did not provide an active asset stream link.")
                 
             jobs[job_id]["progress"] = 50
             
-            # Stream the file from the API directly into Render's storage folder
             file_ext = "mp3" if quality == "audio" else "mp4"
             filename = f"{job_id}_download.{file_ext}"
             file_path = os.path.join(DOWNLOAD_DIR, filename)
@@ -97,7 +99,7 @@ def download_worker(job_id, url, quality):
                 jobs[job_id]["download_url"] = f"/file/{filename}"
                 return
                 
-        raise Exception(f"Mirror API returned status code {response.status_code}")
+        raise Exception(f"Processing gateway returned rejection status: {response.status_code}")
         
     except Exception as e:
         jobs[job_id]["status"] = "error"
