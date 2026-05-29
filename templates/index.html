@@ -331,22 +331,7 @@
     }
     .error-title { font-weight: 700; margin-bottom: 4px; }
 
-    /* ─── Tips ─── */
-    .tips {
-      margin-top: 48px; display: grid; grid-template-columns: repeat(3,1fr); gap: 16px;
-      animation: fadeUp 0.8s ease both 0.5s;
-    }
-    .tip {
-      padding: 20px 22px;
-      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-      transition: all 0.2s;
-    }
-    .tip:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.12); }
-    .tip-icon { font-size: 24px; margin-bottom: 10px; }
-    .tip h3 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
-    .tip p { font-size: 13px; color: var(--muted); line-height: 1.5; }
-
-    /* ─── INJECTED UPDATE: FEEDBACK SECTION STYLES ─── */
+    /* ─── FEEDBACK CARD STYLES ─── */
     .feedback-card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -386,6 +371,21 @@
     #feedbackStatus {
       font-size: 13px; margin-top: 10px; display: none; text-align: center;
     }
+
+    /* ─── Tips ─── */
+    .tips {
+      margin-top: 48px; display: grid; grid-template-columns: repeat(3,1fr); gap: 16px;
+      animation: fadeUp 0.8s ease both 0.5s;
+    }
+    .tip {
+      padding: 20px 22px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+      transition: all 0.2s;
+    }
+    .tip:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.12); }
+    .tip-icon { font-size: 24px; margin-bottom: 10px; }
+    .tip h3 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .tip p { font-size: 13px; color: var(--muted); line-height: 1.5; }
 
     /* ─── Footer ─── */
     footer {
@@ -575,7 +575,159 @@
   <script>
     let pollInterval = null;
 
-    // ─── INJECTED UPDATE: SUBMIT FEEDBACK SCRIPT ───
+    // ─── Paste Button ───
+    document.getElementById('pasteBtn').addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        document.getElementById('urlInput').value = text;
+        detectPlatform(text);
+      } catch(e) {
+        document.getElementById('urlInput').focus();
+      }
+    });
+
+    // ─── Auto detect on input typing/pasting ───
+    document.getElementById('urlInput').addEventListener('input', (e) => {
+      detectPlatform(e.target.value.trim());
+    });
+
+    const platformNames = {
+      youtube: '▶️ YouTube detected', instagram: '📸 Instagram detected',
+      facebook: '🔵 Facebook detected', twitter: '🐦 Twitter / X detected',
+      pinterest: '📌 Pinterest detected', tiktok: '🎵 TikTok detected',
+      reddit: '🤖 Reddit detected', vimeo: '🎬 Vimeo detected',
+      dailymotion: '🎥 Dailymotion detected', other: '🌐 URL detected'
+    };
+
+    function detectPlatform(url) {
+      const badge = document.getElementById('platformBadge');
+      resetState();
+      if (!url || !url.startsWith('http')) {
+        badge.style.display = 'none'; return;
+      }
+      const u = url.toLowerCase();
+      let p = 'other';
+      if (u.includes('youtube') || u.includes('youtu.be')) p = 'youtube';
+      else if (u.includes('instagram')) p = 'instagram';
+      else if (u.includes('facebook') || u.includes('fb.watch')) p = 'facebook';
+      else if (u.includes('twitter') || u.includes('x.com')) p = 'twitter';
+      else if (u.includes('pinterest') || u.includes('pin.it')) p = 'pinterest';
+      else if (u.includes('tiktok')) p = 'tiktok';
+      else if (u.includes('reddit') || u.includes('redd.it')) p = 'reddit';
+      else if (u.includes('vimeo')) p = 'vimeo';
+
+      badge.textContent = platformNames[p] || '🌐 URL detected';
+      badge.style.display = 'flex';
+    }
+
+    function resetState() {
+      document.getElementById('progressArea').style.display = 'none';
+      document.getElementById('resultCard').style.display = 'none';
+      document.getElementById('errorMsg').style.display = 'none';
+      document.getElementById('videoPreview').style.display = 'none';
+      if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+    }
+
+    function setLoading(val) {
+      const btn = document.getElementById('downloadBtn');
+      btn.disabled = val;
+      btn.innerHTML = val
+        ? '<div class="spinner"></div> Processing…'
+        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
+    }
+
+    async function startDownload() {
+      const url = document.getElementById('urlInput').value.trim();
+      if (!url) {
+        document.getElementById('urlInput').focus();
+        document.getElementById('urlInput').style.borderColor = 'var(--accent2)';
+        setTimeout(() => document.getElementById('urlInput').style.borderColor = '', 1500);
+        return;
+      }
+
+      resetState();
+      setLoading(true);
+
+      const quality = document.getElementById('qualitySelect').value;
+
+      // Show progress area
+      const pa = document.getElementById('progressArea');
+      pa.style.display = 'block';
+      document.getElementById('statusText').textContent = 'Starting download…';
+      document.getElementById('progressPct').textContent = '';
+      document.getElementById('progressFill').style.width = '0%';
+      document.getElementById('progressFill').classList.add('indeterminate');
+
+      try {
+        const res = await fetch('/api/download', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ url, quality })
+        });
+        const data = await res.json();
+
+        if (data.error) throw new Error(data.error);
+
+        const jobId = data.job_id;
+        pollInterval = setInterval(() => pollStatus(jobId), 800);
+
+      } catch(err) {
+        setLoading(false);
+        showError(err.message);
+      }
+    }
+
+    async function pollStatus(jobId) {
+      try {
+        const res = await fetch(`/api/status/${jobId}`);
+        const data = await res.json();
+
+        const fill = document.getElementById('progressFill');
+        const statusTxt = document.getElementById('statusText');
+        const pct = document.getElementById('progressPct');
+
+        if (data.status === 'queued') {
+          statusTxt.textContent = 'Queued…';
+        } else if (data.status === 'downloading') {
+          fill.classList.remove('indeterminate');
+          fill.style.width = data.progress + '%';
+          pct.textContent = Math.round(data.progress) + '%';
+          statusTxt.textContent = '⬇ Downloading…';
+        } else if (data.status === 'done') {
+          clearInterval(pollInterval); pollInterval = null;
+          fill.classList.remove('indeterminate');
+          fill.style.width = '100%';
+          pct.textContent = '100%';
+          statusTxt.textContent = '✅ Complete!';
+          setLoading(false);
+          showResult(data.filename, data.download_url);
+        } else if (data.status === 'error') {
+          clearInterval(pollInterval); pollInterval = null;
+          setLoading(false);
+          showError(data.error || 'Unknown error');
+        }
+      } catch(err) {
+        clearInterval(pollInterval); pollInterval = null;
+        setLoading(false);
+        showError('Connection error. Is the server running?');
+      }
+    }
+
+    function showResult(filename, url) {
+      const rc = document.getElementById('resultCard');
+      rc.style.display = 'block';
+      document.getElementById('resultFilename').textContent = filename;
+      document.getElementById('resultLink').href = url;
+    }
+
+    function showError(msg) {
+      const em = document.getElementById('errorMsg');
+      em.style.display = 'block';
+      document.getElementById('errorTxt').textContent = msg;
+      document.getElementById('progressArea').style.display = 'none';
+    }
+
+    // ─── SUBMIT FEEDBACK SCRIPT ───
     async function submitFeedback() {
       const feedbackText = document.getElementById('feedbackInput').value.trim();
       const statusElement = document.getElementById('feedbackStatus');
@@ -600,4 +752,27 @@
         statusElement.style.display = 'block';
         if (response.ok) {
           statusElement.style.color = 'var(--accent3)';
-          statusElement.textContent = 'Thank you! Your feedback has been recorded successfully. 👍
+          statusElement.textContent = 'Thank you! Your feedback has been recorded successfully. 👍';
+          document.getElementById('feedbackInput').value = '';
+        } else {
+          throw new Error(data.error || 'Failed to submit feedback');
+        }
+      } catch (err) {
+        statusElement.style.display = 'block';
+        statusElement.style.color = 'var(--accent2)';
+        statusElement.textContent = 'Oops! Couldn\'t submit right now. Try again later.';
+      } finally {
+        setTimeout(() => {
+          feedbackBtn.disabled = false;
+          feedbackBtn.textContent = 'Submit Feedback';
+        }, 2000);
+      }
+    }
+
+    // Enter key support for input box
+    document.getElementById('urlInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') startDownload();
+    });
+  </script>
+</body>
+</html>
