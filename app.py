@@ -20,7 +20,7 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 jobs = {}
 
-# 👇 Cookies file ka path define kiya jo hum Render par banayein ge
+# Cookies file ka path define kiya jo hum Render par banayein ge
 COOKIES_PATH = os.path.join(BASE_DIR, "cookies.txt")
 
 def detect_platform(url):
@@ -92,7 +92,8 @@ def download_video(job_id, url, quality, fmt):
                 'preferredquality': '192',
             }]
         else:
-            ydl_opts['format'] = 'best[ext=mp4]/best'
+            # 👇 EXTENSION AUR FORMAT ERROR FIX: Single best pre-merged stream picker
+            ydl_opts['format'] = 'b/best'
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
