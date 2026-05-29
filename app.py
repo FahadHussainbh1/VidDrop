@@ -34,6 +34,11 @@ def get_video_info(url):
             'ffmpeg_location': FFMPEG_PATH,
             'no_playlist': True,
             'quiet': True,
+            # 👇 FORAN BYPASS ADDED HERE (FOR INFO FETCHING)
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'geo_bypass': True,
+            'username': 'oauth2',
+            'password': '',
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -67,6 +72,11 @@ def download_video(job_id, url, quality, fmt):
             'merge_output_format': 'mp4',
             'fixup': 'detect_or_warn',
             'progress_hooks': [progress_hook],
+            # 👇 FORAN BYPASS ADDED HERE (FOR ACTUAL DOWNLOADING)
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'geo_bypass': True,
+            'username': 'oauth2',
+            'password': '',
         }
 
         if quality == "audio":
@@ -125,6 +135,7 @@ def job_status(job_id): return jsonify(jobs.get(job_id, {"error": "Not found"}))
 @app.route("/file/<path:filename>") 
 def serve_file(filename):
     return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
+
 @app.route("/api/feedback", methods=["POST"])
 def receive_feedback():
     data = request.json
@@ -141,5 +152,6 @@ def receive_feedback():
         return jsonify({"success": True}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to save feedback: {str(e)}"}), 500
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
