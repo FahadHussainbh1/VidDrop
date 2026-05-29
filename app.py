@@ -84,7 +84,7 @@ def download_video(job_id, url, quality, fmt):
         if os.path.exists(COOKIES_PATH):
             ydl_opts['cookiefile'] = COOKIES_PATH
 
-        # 👇 100% SMART DYNAMIC RESOLUTION MATCHING SYSTEM FOR YOUTUBE
+        # 👇 FIX: FORMAT ERROR KO BYPASS KARNE KE LIYE STRICT FALLBACKS
         if quality == "audio":
             ydl_opts['format'] = 'bestaudio/best'
             ydl_opts['postprocessors'] = [{
@@ -92,20 +92,12 @@ def download_video(job_id, url, quality, fmt):
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }]
-        elif fmt:
-            # Agar frontend ne koi specific format code bheja hai (jaise 18, 22, 137 etc.)
-            ydl_opts['format'] = f'{fmt}/bestvideo+bestaudio/best'
-        elif quality and quality != "best":
-            # Agar frontend ne '720p', '1080p' jesi string bheji hai
-            res = re.search(r'\d+', str(quality))
-            if res:
-                height = res.group()
-                ydl_opts['format'] = f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={height}]+bestaudio/best[height<={height}]/best'
+        else:
+            # Agar frontend se format id aayi hai toh pehle use try kare, warna automatic best video/audio combined uthaye
+            if fmt:
+                ydl_opts['format'] = f'{fmt}/bestvideo+bestaudio/best'
             else:
                 ydl_opts['format'] = 'bestvideo+bestaudio/best'
-        else:
-            # Agar kuch samajh na aaye toh sabse best option uthaye bina crash kiye
-            ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
