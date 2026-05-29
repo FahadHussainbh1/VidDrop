@@ -92,7 +92,7 @@ def download_video(job_id, url, quality, fmt):
                 'preferredquality': '192',
             }]
         else:
-            ydl_opts['format'] = 'bestvideo+bestaudio/bestvideo/bestaudio/best'
+            ydl_opts['format'] = 'best[ext=mp4]/best'
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
