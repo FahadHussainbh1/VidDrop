@@ -20,6 +20,9 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 jobs = {}
 
+# 👇 Cookies file ka path define kiya jo hum Render par banayein ge
+COOKIES_PATH = os.path.join(BASE_DIR, "cookies.txt")
+
 def detect_platform(url):
     url = url.lower()
     if "instagram.com" in url: return "instagram"
@@ -34,12 +37,13 @@ def get_video_info(url):
             'ffmpeg_location': FFMPEG_PATH,
             'no_playlist': True,
             'quiet': True,
-            # 👇 FORAN BYPASS ADDED HERE (FOR INFO FETCHING)
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'geo_bypass': True,
-            'username': 'oauth2',
-            'password': '',
         }
+
+        # Agar system mein cookies file maujood hai toh automatically load kare
+        if os.path.exists(COOKIES_PATH):
+            ydl_opts['cookiefile'] = COOKIES_PATH
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             data = ydl.extract_info(url, download=False)
@@ -72,12 +76,13 @@ def download_video(job_id, url, quality, fmt):
             'merge_output_format': 'mp4',
             'fixup': 'detect_or_warn',
             'progress_hooks': [progress_hook],
-            # 👇 FORAN BYPASS ADDED HERE (FOR ACTUAL DOWNLOADING)
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'geo_bypass': True,
-            'username': 'oauth2',
-            'password': '',
         }
+
+        # Agar system mein cookies file maujood hai toh download ke liye bhi load kare
+        if os.path.exists(COOKIES_PATH):
+            ydl_opts['cookiefile'] = COOKIES_PATH
 
         if quality == "audio":
             ydl_opts['format'] = 'bestaudio/best'
@@ -144,7 +149,6 @@ def receive_feedback():
     if not feedback_message:
         return jsonify({"error": "Feedback message cannot be empty"}), 400
         
-    # Append feedback to a local text file inside your project structure
     feedback_file = os.path.join(BASE_DIR, "user_feedback.txt")
     try:
         with open(feedback_file, "a", encoding="utf-8") as f:
