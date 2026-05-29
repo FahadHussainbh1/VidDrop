@@ -92,8 +92,8 @@ def download_video(job_id, url, quality, fmt):
                 'preferredquality': '192',
             }]
         else:
-            # 👇 EXTENSION AUR FORMAT ERROR FIX: Single best pre-merged stream picker
-            ydl_opts['format'] = 'b/best'
+            # 👇 BULLETPROOF FALLBACK SYSTEM (Har video ke liye best option select karega bina format error ke)
+            ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best'
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
