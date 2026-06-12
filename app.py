@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory, render_template
+from flask import Flask, request, jsonify, send_from_directory, render_template, Respone
 import os
 import re
 import uuid
@@ -170,3 +170,11 @@ if __name__ == "__main__":
 def robots_txt():
     # Yeh Google aur baaki saare bots ko poori website crawl karne ki ijazat dega
     return "User-agent: *\nAllow: /\n", 200, {'Content-Type': 'text/plain'}
+
+@app.route("/robots.txt")
+def robots_txt():
+    data = "User-agent: *\nAllow: /\n"
+    return Response(data, mimetype="text/plain")
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)
