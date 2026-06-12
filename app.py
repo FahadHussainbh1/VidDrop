@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory, render_template, Respone
+from flask import Flask, request, jsonify, send_from_directory, render_template, Response # 👈 YAHAN 'Response' ADD KAR DIYA
 import os
 import re
 import uuid
@@ -84,7 +84,6 @@ def download_video(job_id, url, quality, fmt):
         if os.path.exists(COOKIES_PATH):
             ydl_opts['cookiefile'] = COOKIES_PATH
 
-        # 👇 FIX: FORMAT ERROR KO BYPASS KARNE KE LIYE STRICT FALLBACKS
         if quality == "audio":
             ydl_opts['format'] = 'bestaudio/best'
             ydl_opts['postprocessors'] = [{
@@ -93,7 +92,6 @@ def download_video(job_id, url, quality, fmt):
                 'preferredquality': '192',
             }]
         else:
-            # Agar frontend se format id aayi hai toh pehle use try kare, warna automatic best video/audio combined uthaye
             if fmt:
                 ydl_opts['format'] = f'{fmt}/bestvideo+bestaudio/best'
             else:
@@ -162,15 +160,7 @@ def receive_feedback():
     except Exception as e:
         return jsonify({"error": f"Failed to save feedback: {str(e)}"}), 500
 
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
-
-
-@app.route("/robots.txt")
-def robots_txt():
-    # Yeh Google aur baaki saare bots ko poori website crawl karne ki ijazat dega
-    return "User-agent: *\nAllow: /\n", 200, {'Content-Type': 'text/plain'}
-
+# 👇 ROBOTS.TXT ROUTE ADDED HERE CLEANLY
 @app.route("/robots.txt")
 def robots_txt():
     data = "User-agent: *\nAllow: /\n"
