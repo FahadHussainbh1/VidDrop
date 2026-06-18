@@ -172,7 +172,7 @@ def robots_txt():
     return response
 
 # 👇 GOOGLE DIRECT VERIFICATION ROUTE
-@app.route("/googlea1b2c3d4e5f6.html")  # 👈 Is naam ko apni google file ke naam se badalna hai
+@app.route("/googlead1234567890abcdef.html")  # 👈 Yahan apni ASLI file ka naam paste karein (with .html)
 def google_verify():
-    # Google ki file ke andar jo text likha hota hai, wo yahan dalo
-    return "google-site-verification: googlea1b2c3d4e5f6.html", 200, {'Content-Type': 'text/html'}
+    # Google Search Console se jo file name mila hai, wahi text yahan return karein
+    return "google-site-verification: googlead1234567890abcdef.html", 200, {'Content-Type': 'text/html'}
