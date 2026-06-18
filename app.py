@@ -92,8 +92,14 @@ def download_video(job_id, url, quality, fmt):
                 'preferredquality': '192',
             }]
         else:
+            # 🚀 FIXED HIGH QUALITY LIST SYSTEM (720p, 1080p, etc. and custom resolution formats)
             if fmt:
-                ydl_opts['format'] = f'{fmt}/bestvideo+bestaudio/best'
+                # Agar strict format id pass hui hai, toh us adaptive video stream ke sath best audio merge karo fallbacks ke sath
+                ydl_opts['format'] = f'{fmt}+bestaudio/bestvideo+bestaudio/best'
+            elif quality and quality != "best":
+                # Agar simple height resolution pass hui hai (jaise 720p ya 1080p)
+                res_limit = quality.replace("p", "")
+                ydl_opts['format'] = f'bestvideo[height<={res_limit}]+bestaudio/best'
             else:
                 ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
