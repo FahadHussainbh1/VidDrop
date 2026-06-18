@@ -175,3 +175,16 @@ def robots_txt():
 @app.route("/google877c2bdc7ac64d06.html")
 def google_verify():
     return "google-site-verification: google877c2bdc7ac64d06.html", 200, {'Content-Type': 'text/html'}
+
+
+@app.route("/sitemap.xml")
+def sitemap():
+    xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        <url>
+            <loc>https://viddrop-7e3b.onrender.com/</loc>
+            <changefreq>daily</changefreq>
+            <priority>1.0</priority>
+        </url>
+    </urlset>"""
+    return Response(xml_content, mimetype='application/xml')
