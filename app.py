@@ -170,3 +170,9 @@ def robots_txt():
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
+
+# 👇 GOOGLE DIRECT VERIFICATION ROUTE
+@app.route("/googlea1b2c3d4e5f6.html")  # 👈 Is naam ko apni google file ke naam se badalna hai
+def google_verify():
+    # Google ki file ke andar jo text likha hota hai, wo yahan dalo
+    return "google-site-verification: googlea1b2c3d4e5f6.html", 200, {'Content-Type': 'text/html'}
