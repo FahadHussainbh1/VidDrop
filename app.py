@@ -163,8 +163,10 @@ def receive_feedback():
 # 👇 ROBOTS.TXT ROUTE ADDED HERE CLEANLY
 @app.route("/robots.txt")
 def robots_txt():
-    data = "User-agent: *\nAllow: /\n"
-    return Response(data, mimetype="text/plain")
-
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    # Strict plain text content headers with explicit absolute access
+    content = "User-agent: *\nAllow: /\nDisallow:\n"
+    response = Response(content, mimetype="text/plain")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
