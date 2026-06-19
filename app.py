@@ -76,8 +76,12 @@ def download_video(job_id, url, quality, fmt):
             'merge_output_format': 'mp4',
             'fixup': 'detect_or_warn',
             'progress_hooks': [progress_hook],
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'geo_bypass': True,
+            # 🚀 NEW FIX PARAMETERS
+            'extract_flat': False,              # Forced extractor loading logic
+            'check_formats': False,             # Agar n-challenge break ho, tab bhi streams fetch kare
+            'ignoreerrors': True,               # Broken image streams ko ignore kar ke aage barhe
         }
 
         # Agar system mein cookies file maujood hai toh download ke liye bhi load kare
@@ -92,17 +96,14 @@ def download_video(job_id, url, quality, fmt):
                 'preferredquality': '192',
             }]
         else:
-            # 🚀 FIXED HIGH QUALITY LIST SYSTEM (720p, 1080p, etc. and custom resolution formats)
+            # 🎯 Best foolproof adaptive pairing with exact query string
             if fmt:
-                # Agar strict format id pass hui hai, toh us adaptive video stream ke sath best audio merge karo fallbacks ke sath
-                ydl_opts['format'] = f'{fmt}+bestaudio/bestvideo+bestaudio/best'
+                ydl_opts['format'] = f'{fmt}+bestaudio/best'
             elif quality and quality != "best":
-                # Agar simple height resolution pass hui hai (jaise 720p ya 1080p)
                 res_limit = quality.replace("p", "")
                 ydl_opts['format'] = f'bestvideo[height<={res_limit}]+bestaudio/best'
             else:
                 ydl_opts['format'] = 'bestvideo+bestaudio/best'
-
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
