@@ -61,7 +61,6 @@ def download_video(job_id, url, quality, fmt):
     try:
         jobs[job_id]["status"] = "downloading"
         
-        # Absolute path ensure karein taaki koi confusion na rahe
         abs_download_dir = os.path.abspath(DOWNLOAD_DIR)
         if not os.path.exists(abs_download_dir):
             os.makedirs(abs_download_dir)
@@ -75,96 +74,69 @@ def download_video(job_id, url, quality, fmt):
                 if total > 0:
                     jobs[job_id]["progress"] = round((downloaded / total) * 100, 2)
 
+        # 🚀 ULTRA COMPATIBLE OPTIONS
         ydl_opts = {
             'ffmpeg_location': FFMPEG_PATH,
             'no_playlist': True,
             'outtmpl': output_template,
-            'merge_output_format': 'mp4',
-            'fixup': 'detect_or_warn',
-            'progress_hooks': [progress_hook],
-            # 🚀 NEW CRITICAL FIX: Direct bypass fake headers
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Sec-Fetch-Mode': 'navigate',
-            },
             'geo_bypass': True,
-            'ignoreerrors': True,
-            'quiet': False,
-            'no_warnings': False
+            'ignoreerrors': False, # Error throw karne dein taaki exact reason dikhe skip hone ke bajaye
+            'format_sort': ['res:720', 'ext:mp4:m4a'], # Automatic priority routing
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.5',
+            }
         }
 
         if os.path.exists(COOKIES_PATH):
             ydl_opts['cookiefile'] = COOKIES_PATH
 
-        # 🚀 FORMAT FALLBACK BACKUP SYSTEM
-        # Render par strict pairing block hoti hai, isliye fallback standard format denge
+        # 🚀 ULTRA-LIGHT CRITICAL FORMAT FORCING
         if quality == "audio":
-            ydl_opts['format'] = 'bestaudio/best'
+            ydl_opts['format'] = 'ba/b'
             ydl_opts['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
-                'preferredquality': '192',
+                'preferredquality': '128',
             }]
         else:
-            if fmt:
-                ydl_opts['format'] = f'{fmt}+bestaudio/best/best'
-            elif quality and quality != "best":
-                res_limit = quality.replace("p", "")
-                # Agar specified quality temporary block ho, toh automatically 'best' standard single file utha le (stuck hone ke bajaye)
-                ydl_opts['format'] = f'bestvideo[height<={res_limit}]+bestaudio/best/best[height<={res_limit}]/best'
-            else:
-                ydl_opts['format'] = 'bestvideo+bestaudio/best'
+            # Kuch complex nahi—direct single video stream filter ya default worst-case fallback
+            ydl_opts['format'] = 'b/ext:mp4:m4a/worst'
+
         # Execute download
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        # 🚀 SMART WAITING LOOP WITH DIRECTORY SNAPSHOTS
+        # Smart rename loop
         import time
         file_found = False
-        
-        # Total 20 seconds wait buffer
-        for attempt in range(20):
+        for attempt in range(15):
             current_files = os.listdir(abs_download_dir)
-            print(f"[DEBUG] Attempt {attempt}: Files in download dir -> {current_files}")
-            
             for f in current_files:
-                # Target file matching criteria
                 if f.startswith(job_id) and not any(ext in f for ext in ['.part', '.ytdl', '.temp']):
                     old_path = os.path.join(abs_download_dir, f)
-                    
-                    # Extension secure karein
-                    ext = os.path.splitext(f)[1] or ('.mp3' if quality == 'audio' else '.mp4')
+                    ext = os.path.splitext(f)[1] or '.mp4'
                     safe_name = f"{job_id}{ext}"
                     new_path = os.path.join(abs_download_dir, safe_name)
                     
-                    if os.path.exists(new_path): 
-                        os.remove(new_path)
-                        
+                    if os.path.exists(new_path): os.remove(new_path)
                     os.rename(old_path, new_path)
                     
                     jobs[job_id]["status"] = "done"
                     jobs[job_id]["filename"] = safe_name
                     jobs[job_id]["download_url"] = f"/file/{safe_name}"
                     file_found = True
-                    print(f"[DEBUG] Success! File matched and renamed to: {safe_name}")
                     return
-                    
-            if file_found: break
             time.sleep(1)
 
-        # 🚨 AGAR PHIR BHI FAIL HO TOH POORA DIRECTORY STRUCTURE ERROR MEIN BHEJ DEIN
         if not file_found:
-            all_files = os.listdir(abs_download_dir)
             jobs[job_id]["status"] = "error"
-            jobs[job_id]["error"] = f"File missing on Render. Folder contents: {all_files}"
-            print(f"[DEBUG] Failed to find file. Folder state: {all_files}")
+            jobs[job_id]["error"] = f"Render block active. Files found: {os.listdir(abs_download_dir)}"
             
     except Exception as e:
         jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = f"Download exception: {str(e)}"
-        print(f"[DEBUG] Exception hit: {str(e)}")
+        jobs[job_id]["error"] = f"Final try error: {str(e)}"
 
 @app.route("/")
 def index(): return render_template("index.html")
