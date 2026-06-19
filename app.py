@@ -82,16 +82,24 @@ def download_video(job_id, url, quality, fmt):
             'merge_output_format': 'mp4',
             'fixup': 'detect_or_warn',
             'progress_hooks': [progress_hook],
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            # 🚀 NEW CRITICAL FIX: Direct bypass fake headers
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Sec-Fetch-Mode': 'navigate',
+            },
             'geo_bypass': True,
-            'extract_flat': False,
-            'check_formats': False,
             'ignoreerrors': True,
+            'quiet': False,
+            'no_warnings': False
         }
 
         if os.path.exists(COOKIES_PATH):
             ydl_opts['cookiefile'] = COOKIES_PATH
 
+        # 🚀 FORMAT FALLBACK BACKUP SYSTEM
+        # Render par strict pairing block hoti hai, isliye fallback standard format denge
         if quality == "audio":
             ydl_opts['format'] = 'bestaudio/best'
             ydl_opts['postprocessors'] = [{
@@ -101,13 +109,13 @@ def download_video(job_id, url, quality, fmt):
             }]
         else:
             if fmt:
-                ydl_opts['format'] = f'{fmt}+bestaudio/best'
+                ydl_opts['format'] = f'{fmt}+bestaudio/best/best'
             elif quality and quality != "best":
                 res_limit = quality.replace("p", "")
-                ydl_opts['format'] = f'bestvideo[height<={res_limit}]+bestaudio/best'
+                # Agar specified quality temporary block ho, toh automatically 'best' standard single file utha le (stuck hone ke bajaye)
+                ydl_opts['format'] = f'bestvideo[height<={res_limit}]+bestaudio/best/best[height<={res_limit}]/best'
             else:
                 ydl_opts['format'] = 'bestvideo+bestaudio/best'
-
         # Execute download
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
