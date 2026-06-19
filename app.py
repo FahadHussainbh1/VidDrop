@@ -61,8 +61,12 @@ def download_video(job_id, url, quality, fmt):
     try:
         jobs[job_id]["status"] = "downloading"
         
-        # 🚀 FIX 1: Explicitly force output extension in template so it locks properly
-        output_template = os.path.join(DOWNLOAD_DIR, f"{job_id}_%(title).80s.%(ext)s")
+        # Absolute path ensure karein taaki koi confusion na rahe
+        abs_download_dir = os.path.abspath(DOWNLOAD_DIR)
+        if not os.path.exists(abs_download_dir):
+            os.makedirs(abs_download_dir)
+            
+        output_template = os.path.join(abs_download_dir, f"{job_id}_%(title).50s.%(ext)s")
 
         def progress_hook(d):
             if d['status'] == 'downloading':
@@ -104,38 +108,55 @@ def download_video(job_id, url, quality, fmt):
             else:
                 ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
+        # Execute download
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        # 🚀 FIX 2: Wait system for Render servers to finish FFmpeg merging (Max 15 seconds)
+        # 🚀 SMART WAITING LOOP WITH DIRECTORY SNAPSHOTS
         import time
         file_found = False
-        for _ in range(15):
-            for f in os.listdir(DOWNLOAD_DIR):
-                # Temporary .part ya .ytdl files ko skip karein, sirf final output dhoondein
-                if f.startswith(job_id) and not f.endswith('.part') and not f.endswith('.ytdl'):
-                    old_path = os.path.join(DOWNLOAD_DIR, f)
-                    safe_name = re.sub(r'[^\w\d.]', '_', f)
-                    new_path = os.path.join(DOWNLOAD_DIR, safe_name)
+        
+        # Total 20 seconds wait buffer
+        for attempt in range(20):
+            current_files = os.listdir(abs_download_dir)
+            print(f"[DEBUG] Attempt {attempt}: Files in download dir -> {current_files}")
+            
+            for f in current_files:
+                # Target file matching criteria
+                if f.startswith(job_id) and not any(ext in f for ext in ['.part', '.ytdl', '.temp']):
+                    old_path = os.path.join(abs_download_dir, f)
                     
-                    if os.path.exists(new_path): os.remove(new_path) 
+                    # Extension secure karein
+                    ext = os.path.splitext(f)[1] or ('.mp3' if quality == 'audio' else '.mp4')
+                    safe_name = f"{job_id}{ext}"
+                    new_path = os.path.join(abs_download_dir, safe_name)
+                    
+                    if os.path.exists(new_path): 
+                        os.remove(new_path)
+                        
                     os.rename(old_path, new_path)
                     
                     jobs[job_id]["status"] = "done"
                     jobs[job_id]["filename"] = safe_name
                     jobs[job_id]["download_url"] = f"/file/{safe_name}"
                     file_found = True
+                    print(f"[DEBUG] Success! File matched and renamed to: {safe_name}")
                     return
+                    
             if file_found: break
-            time.sleep(1) # Wait 1 second before checking folder again
+            time.sleep(1)
 
+        # 🚨 AGAR PHIR BHI FAIL HO TOH POORA DIRECTORY STRUCTURE ERROR MEIN BHEJ DEIN
         if not file_found:
+            all_files = os.listdir(abs_download_dir)
             jobs[job_id]["status"] = "error"
-            jobs[job_id]["error"] = "File processing complete but target output file missing."
+            jobs[job_id]["error"] = f"File missing on Render. Folder contents: {all_files}"
+            print(f"[DEBUG] Failed to find file. Folder state: {all_files}")
             
     except Exception as e:
         jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = f"Download failed: {str(e)}"
+        jobs[job_id]["error"] = f"Download exception: {str(e)}"
+        print(f"[DEBUG] Exception hit: {str(e)}")
 
 @app.route("/")
 def index(): return render_template("index.html")
