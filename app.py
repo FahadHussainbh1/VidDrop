@@ -60,6 +60,8 @@ def get_video_info(url):
 def download_video(job_id, url, quality, fmt):
     try:
         jobs[job_id]["status"] = "downloading"
+        
+        # 🚀 FIX 1: Explicitly force output extension in template so it locks properly
         output_template = os.path.join(DOWNLOAD_DIR, f"{job_id}_%(title).80s.%(ext)s")
 
         def progress_hook(d):
@@ -78,13 +80,11 @@ def download_video(job_id, url, quality, fmt):
             'progress_hooks': [progress_hook],
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'geo_bypass': True,
-            # 🚀 NEW FIX PARAMETERS
-            'extract_flat': False,              # Forced extractor loading logic
-            'check_formats': False,             # Agar n-challenge break ho, tab bhi streams fetch kare
-            'ignoreerrors': True,               # Broken image streams ko ignore kar ke aage barhe
+            'extract_flat': False,
+            'check_formats': False,
+            'ignoreerrors': True,
         }
 
-        # Agar system mein cookies file maujood hai toh download ke liye bhi load kare
         if os.path.exists(COOKIES_PATH):
             ydl_opts['cookiefile'] = COOKIES_PATH
 
@@ -96,7 +96,6 @@ def download_video(job_id, url, quality, fmt):
                 'preferredquality': '192',
             }]
         else:
-            # 🎯 Best foolproof adaptive pairing with exact query string
             if fmt:
                 ydl_opts['format'] = f'{fmt}+bestaudio/best'
             elif quality and quality != "best":
@@ -104,25 +103,36 @@ def download_video(job_id, url, quality, fmt):
                 ydl_opts['format'] = f'bestvideo[height<={res_limit}]+bestaudio/best'
             else:
                 ydl_opts['format'] = 'bestvideo+bestaudio/best'
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        for f in os.listdir(DOWNLOAD_DIR):
-            if f.startswith(job_id):
-                old_path = os.path.join(DOWNLOAD_DIR, f)
-                safe_name = re.sub(r'[^\w\d.]', '_', f)
-                new_path = os.path.join(DOWNLOAD_DIR, safe_name)
-                
-                if os.path.exists(new_path): os.remove(new_path) 
-                os.rename(old_path, new_path)
-                
-                jobs[job_id]["status"] = "done"
-                jobs[job_id]["filename"] = safe_name
-                jobs[job_id]["download_url"] = f"/file/{safe_name}"
-                return
+        # 🚀 FIX 2: Wait system for Render servers to finish FFmpeg merging (Max 15 seconds)
+        import time
+        file_found = False
+        for _ in range(15):
+            for f in os.listdir(DOWNLOAD_DIR):
+                # Temporary .part ya .ytdl files ko skip karein, sirf final output dhoondein
+                if f.startswith(job_id) and not f.endswith('.part') and not f.endswith('.ytdl'):
+                    old_path = os.path.join(DOWNLOAD_DIR, f)
+                    safe_name = re.sub(r'[^\w\d.]', '_', f)
+                    new_path = os.path.join(DOWNLOAD_DIR, safe_name)
+                    
+                    if os.path.exists(new_path): os.remove(new_path) 
+                    os.rename(old_path, new_path)
+                    
+                    jobs[job_id]["status"] = "done"
+                    jobs[job_id]["filename"] = safe_name
+                    jobs[job_id]["download_url"] = f"/file/{safe_name}"
+                    file_found = True
+                    return
+            if file_found: break
+            time.sleep(1) # Wait 1 second before checking folder again
 
-        jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = "File processing complete but target output file missing."
+        if not file_found:
+            jobs[job_id]["status"] = "error"
+            jobs[job_id]["error"] = "File processing complete but target output file missing."
+            
     except Exception as e:
         jobs[job_id]["status"] = "error"
         jobs[job_id]["error"] = f"Download failed: {str(e)}"
