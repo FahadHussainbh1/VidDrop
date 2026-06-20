@@ -44,31 +44,62 @@ def download_video(job_id, url, quality, fmt):
         # =======================================================
         # 🚀 1. GOOGLE DRIVE DOWNLOAD LOGIC
         # =======================================================
+        # =======================================================
+        # 🚀 1. GOOGLE DRIVE LARGE FILE BYPASS LOGIC
+        # =======================================================
         if platform == "google_drive":
-            # Extract File ID from Google Drive URL
             file_id_match = re.search(r'/d/([a-zA-Z0-9-_]+)', url) or re.search(r'id=([a-zA-Z0-9-_]+)', url)
             if not file_id_match:
                 raise Exception("Invalid Google Drive URL structure or file is not public.")
             
             file_id = file_id_match.group(1)
-            download_url = f"https://docs.google.com/uc?export=download&id={file_id}&confirm=t"
             
             import requests
             safe_name = f"{job_id}_drive_video.mp4"
             output_path = os.path.join(abs_download_dir, safe_name)
             
-            # Stream the file down to Render server
-            with requests.get(download_url, stream=True) as r:
-                r.raise_for_status()
-                total_length = int(r.headers.get('content-length', 0))
-                downloaded = 0
-                with open(output_path, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                            downloaded += len(chunk)
-                            if total_length > 0:
-                                jobs[job_id]["progress"] = round((downloaded / total_length) * 100, 2)
+            # Create a persistent session to hold Google's tracking cookies
+            session = requests.Session()
+            
+            # Step 1: Send a request to see if Google throws a large file confirmation page
+            base_url = "https://docs.google.com/uc?export=download"
+            response = session.get(base_url, params={'id': file_id}, stream=True)
+            
+            # Step 2: Extract confirmation token if present in cookies or HTML content
+            confirm_token = None
+            for key, value in response.cookies.items():
+                if key.startswith('download_warning'):
+                    confirm_token = value
+                    break
+                    
+            # If token wasn't in cookies, look inside the html page content
+            if not confirm_token:
+                match = re.search(r'confirm=([A-Za-z0-9_]+)', response.text)
+                if match:
+                    confirm_token = match.group(1)
+            
+            # Step 3: If confirmation token is found, make the final request with the token
+            params = {'id': file_id}
+            if confirm_token:
+                params['confirm'] = confirm_token
+                
+            final_response = session.get(base_url, params=params, stream=True)
+            final_response.raise_for_status()
+            
+            # Step 4: Stream down the actual large video chunk by chunk
+            total_length = int(final_response.headers.get('content-length', 0))
+            downloaded = 0
+            
+            with open(output_path, 'wb') as f:
+                for chunk in final_response.iter_content(chunk_size=1024 * 1024): # 1MB chunks for speed
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_length > 0:
+                            jobs[job_id]["progress"] = round((downloaded / total_length) * 100, 2)
+                        else:
+                            # If content-length is hidden by Google, show mock progress based on megabytes downloaded
+                            jobs[job_id]["progress"] = f"Downloaded {round(downloaded / (1024*1024), 1)} MB"
             
             jobs[job_id]["status"] = "done"
             jobs[job_id]["filename"] = safe_name
