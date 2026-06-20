@@ -29,42 +29,55 @@ def detect_platform(url):
     if "facebook.com" in url or "fb.watch" in url: return "facebook"
     if "tiktok.com" in url: return "tiktok"
     if "pinterest.com" in url or "pin.it" in url: return "pinterest"
+    # 🚀 NEW PLATFORMS ADDED
+    if "drive.google.com" in url: return "google_drive"
+    if "terabox.com" in url or "nebx.cc" in url or "teraboxapp" in url: return "terabox"
     return "other"
-
-def get_video_info(url):
-    try:
-        ydl_opts = {
-            'ffmpeg_location': FFMPEG_PATH,
-            'no_playlist': True,
-            'quiet': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'geo_bypass': True,
-        }
-
-        # Agar system mein cookies file maujood hai toh automatically load kare
-        if os.path.exists(COOKIES_PATH):
-            ydl_opts['cookiefile'] = COOKIES_PATH
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            data = ydl.extract_info(url, download=False)
-            if data:
-                return {
-                    "title": data.get("title", "Video"),
-                    "thumbnail": data.get("thumbnail", ""),
-                    "formats": [{"ext": f.get("ext"), "resolution": f.get("resolution")} for f in data.get("formats", [])]
-                }
-    except Exception as e:
-        print(f"Info Error: {e}")
-    return None
 
 def download_video(job_id, url, quality, fmt):
     try:
         jobs[job_id]["status"] = "downloading"
-        
         abs_download_dir = os.path.abspath(DOWNLOAD_DIR)
-        if not os.path.exists(abs_download_dir):
-            os.makedirs(abs_download_dir)
+        
+        platform = detect_platform(url)
+
+        # =======================================================
+        # 🚀 1. GOOGLE DRIVE DOWNLOAD LOGIC
+        # =======================================================
+        if platform == "google_drive":
+            # Extract File ID from Google Drive URL
+            file_id_match = re.search(r'/d/([a-zA-Z0-9-_]+)', url) or re.search(r'id=([a-zA-Z0-9-_]+)', url)
+            if not file_id_match:
+                raise Exception("Invalid Google Drive URL structure or file is not public.")
             
+            file_id = file_id_match.group(1)
+            download_url = f"https://docs.google.com/uc?export=download&id={file_id}&confirm=t"
+            
+            import requests
+            safe_name = f"{job_id}_drive_video.mp4"
+            output_path = os.path.join(abs_download_dir, safe_name)
+            
+            # Stream the file down to Render server
+            with requests.get(download_url, stream=True) as r:
+                r.raise_for_status()
+                total_length = int(r.headers.get('content-length', 0))
+                downloaded = 0
+                with open(output_path, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total_length > 0:
+                                jobs[job_id]["progress"] = round((downloaded / total_length) * 100, 2)
+            
+            jobs[job_id]["status"] = "done"
+            jobs[job_id]["filename"] = safe_name
+            jobs[job_id]["download_url"] = f"/file/{safe_name}"
+            return
+
+        # =======================================================
+        # 🚀 2. TERABOX & OTHER PLATFORMS (Via yt-dlp)
+        # =======================================================
         output_template = os.path.join(abs_download_dir, f"{job_id}_%(title).50s.%(ext)s")
 
         def progress_hook(d):
@@ -74,46 +87,29 @@ def download_video(job_id, url, quality, fmt):
                 if total > 0:
                     jobs[job_id]["progress"] = round((downloaded / total) * 100, 2)
 
-        # 🚀 ULTRA COMPATIBLE OPTIONS
         ydl_opts = {
             'ffmpeg_location': FFMPEG_PATH,
             'no_playlist': True,
             'outtmpl': output_template,
             'geo_bypass': True,
-            'ignoreerrors': False, # Error throw karne dein taaki exact reason dikhe skip hone ke bajaye
-            'format_sort': ['res:720', 'ext:mp4:m4a'], # Automatic priority routing
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.5',
-            }
+            'ignoreerrors': True,
+            'progress_hooks': [progress_hook],
         }
 
-        if os.path.exists(COOKIES_PATH):
-            ydl_opts['cookiefile'] = COOKIES_PATH
-
-        # 🚀 ULTRA-LIGHT CRITICAL FORMAT FORCING
-        if quality == "audio":
-            ydl_opts['format'] = 'ba/b'
-            ydl_opts['postprocessors'] = [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '128',
-            }]
+        # TeraBox aur baqi platforms ke liye standard format mapping
+        if platform == "terabox":
+            ydl_opts['format'] = 'best'  # TeraBox direct single combined file deta hai
         else:
-            # Kuch complex nahi—direct single video stream filter ya default worst-case fallback
-            ydl_opts['format'] = 'b/ext:mp4:m4a/worst'
+            # Default fallback for other social media platforms
+            ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
-        # Execute download
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        # Smart rename loop
+        # Rename system for target output file
         import time
-        file_found = False
         for attempt in range(15):
-            current_files = os.listdir(abs_download_dir)
-            for f in current_files:
+            for f in os.listdir(abs_download_dir):
                 if f.startswith(job_id) and not any(ext in f for ext in ['.part', '.ytdl', '.temp']):
                     old_path = os.path.join(abs_download_dir, f)
                     ext = os.path.splitext(f)[1] or '.mp4'
@@ -126,17 +122,15 @@ def download_video(job_id, url, quality, fmt):
                     jobs[job_id]["status"] = "done"
                     jobs[job_id]["filename"] = safe_name
                     jobs[job_id]["download_url"] = f"/file/{safe_name}"
-                    file_found = True
                     return
             time.sleep(1)
 
-        if not file_found:
-            jobs[job_id]["status"] = "error"
-            jobs[job_id]["error"] = f"Render block active. Files found: {os.listdir(abs_download_dir)}"
+        jobs[job_id]["status"] = "error"
+        jobs[job_id]["error"] = "File processed but not captured in target directory."
             
     except Exception as e:
         jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = f"Final try error: {str(e)}"
+        jobs[job_id]["error"] = f"Download failed: {str(e)}"
 
 @app.route("/")
 def index(): return render_template("index.html")
