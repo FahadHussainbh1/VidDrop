@@ -109,6 +109,7 @@ def download_video(job_id, url, quality, fmt):
         # =======================================================
         # 🚀 2. TERABOX & OTHER PLATFORMS (Via yt-dlp)
         # =======================================================
+        # Default template for standard platforms
         output_template = os.path.join(abs_download_dir, f"{job_id}_%(title).50s.%(ext)s")
 
         def progress_hook(d):
@@ -127,21 +128,41 @@ def download_video(job_id, url, quality, fmt):
             'progress_hooks': [progress_hook],
         }
 
-        # TeraBox aur baqi platforms ke liye standard format mapping
+        # 🚀 CRITICAL FIXED: TeraBox strict single file routing
         if platform == "terabox":
-            ydl_opts['format'] = 'best'  # TeraBox direct single combined file deta hai
+            ydl_opts['format'] = 'best'
+            # Force target path to be completely clean and predictible without dynamic titles
+            ydl_opts['outtmpl'] = os.path.join(abs_download_dir, f"{job_id}_terabox.mp4")
         else:
-            # Default fallback for other social media platforms
             ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        # Rename system for target output file
+        # 🚀 SMART CAPTURE & RENAME SYSTEM
         import time
         for attempt in range(15):
-            for f in os.listdir(abs_download_dir):
-                if f.startswith(job_id) and not any(ext in f for ext in ['.part', '.ytdl', '.temp']):
+            current_files = os.listdir(abs_download_dir)
+            
+            # Special check for forced TeraBox output
+            if platform == "terabox":
+                forced_name = f"{job_id}_terabox.mp4"
+                if forced_name in current_files:
+                    old_path = os.path.join(abs_download_dir, forced_name)
+                    safe_name = f"{job_id}.mp4"
+                    new_path = os.path.join(abs_download_dir, safe_name)
+                    
+                    if os.path.exists(new_path): os.remove(new_path)
+                    os.rename(old_path, new_path)
+                    
+                    jobs[job_id]["status"] = "done"
+                    jobs[job_id]["filename"] = safe_name
+                    jobs[job_id]["download_url"] = f"/file/{safe_name}"
+                    return
+
+            # Fallback normal checking for other platforms
+            for f in current_files:
+                if f.startswith(job_id) and not any(ext in f for ext in ['.part', '.ytdl', '.temp', '.download']):
                     old_path = os.path.join(abs_download_dir, f)
                     ext = os.path.splitext(f)[1] or '.mp4'
                     safe_name = f"{job_id}{ext}"
@@ -157,8 +178,7 @@ def download_video(job_id, url, quality, fmt):
             time.sleep(1)
 
         jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = "File processed but not captured in target directory."
-            
+        jobs[job_id]["error"] = f"File processed but not captured. Active files: {os.listdir(abs_download_dir)}"    
     except Exception as e:
         jobs[job_id]["status"] = "error"
         jobs[job_id]["error"] = f"Download failed: {str(e)}"
