@@ -22,16 +22,16 @@ jobs = {}
 
 # Cookies file ka path define kiya jo hum Render par banayein ge
 COOKIES_PATH = os.path.join(BASE_DIR, "cookies.txt")
-
 def detect_platform(url):
     url = url.lower()
     if "instagram.com" in url: return "instagram"
     if "facebook.com" in url or "fb.watch" in url: return "facebook"
     if "tiktok.com" in url: return "tiktok"
     if "pinterest.com" in url or "pin.it" in url: return "pinterest"
-    # 🚀 NEW PLATFORMS ADDED
     if "drive.google.com" in url: return "google_drive"
-    if "terabox.com" in url or "nebx.cc" in url or "teraboxapp" in url: return "terabox"
+    # 🚀 UPDATED TERABOX DOMAINS
+    if any(domain in url for domain in ["terabox", "nebx.cc", "teraboxapp", "1024tera", "terasharefile"]): 
+        return "terabox"
     return "other"
 
 def download_video(job_id, url, quality, fmt):
@@ -45,7 +45,7 @@ def download_video(job_id, url, quality, fmt):
         platform = detect_platform(url)
 
         # =======================================================
-        # 🚀 1. GOOGLE DRIVE (LARGE & SMALL FILES) 100% FIX
+        # 🚀 1. GOOGLE DRIVE FIXED STREAM
         # =======================================================
         if platform == "google_drive":
             file_id_match = re.search(r'/d/([a-zA-Z0-9-_]+)', url) or re.search(r'id=([a-zA-Z0-9-_]+)', url)
@@ -53,14 +53,12 @@ def download_video(job_id, url, quality, fmt):
                 raise Exception("Invalid Google Drive URL structure or file is not public.")
             
             file_id = file_id_match.group(1)
-            
             import requests
             safe_name = f"{job_id}_drive_video.mp4"
             output_path = os.path.join(abs_download_dir, safe_name)
             
             session = requests.Session()
             base_url = "https://docs.google.com/uc?export=download"
-            
             response = session.get(base_url, params={'id': file_id}, stream=True)
             
             confirm_token = None
@@ -68,22 +66,18 @@ def download_video(job_id, url, quality, fmt):
                 if key.startswith('download_warning'):
                     confirm_token = value
                     break
-                    
             if not confirm_token:
                 match = re.search(r'confirm=([A-Za-z0-9_]+)', response.text)
-                if match:
-                    confirm_token = match.group(1)
+                if match: confirm_token = match.group(1)
             
             params = {'id': file_id}
-            if confirm_token:
-                params['confirm'] = confirm_token
+            if confirm_token: params['confirm'] = confirm_token
                 
             final_response = session.get(base_url, params=params, stream=True)
             final_response.raise_for_status()
             
             total_length = int(final_response.headers.get('content-length', 0))
             downloaded = 0
-            
             with open(output_path, 'wb') as f:
                 for chunk in final_response.iter_content(chunk_size=1024 * 1024):
                     if chunk:
@@ -100,7 +94,7 @@ def download_video(job_id, url, quality, fmt):
             return
 
         # =======================================================
-        # 🚀 2. TERABOX, YOUTUBE & OTHER PLATFORMS
+        # 🚀 2. TERABOX, YOUTUBE & GENERAL FALLBACKS
         # =======================================================
         output_template = os.path.join(abs_download_dir, f"{job_id}_%(title).50s.%(ext)s")
 
@@ -120,7 +114,7 @@ def download_video(job_id, url, quality, fmt):
             'progress_hooks': [progress_hook],
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.5',
             }
         }
@@ -128,10 +122,9 @@ def download_video(job_id, url, quality, fmt):
         if os.path.exists(COOKIES_PATH):
             ydl_opts['cookiefile'] = COOKIES_PATH
 
-        # 🎯 PLATFORM BASED FORMAT ROUTING
+        # 🎯 ULTRA FLEXIBLE FORMAT ROUTING TO AVOID RENDER BLOCKING
         if platform == "terabox":
-            ydl_opts['format'] = 'best'
-            # STRICT TERABOX TEMPLATE BYPASS (No dynamic title bugs)
+            ydl_opts['format'] = 'best/bestvideo'
             ydl_opts['outtmpl'] = os.path.join(abs_download_dir, f"{job_id}_terabox.mp4")
         elif quality == "audio":
             ydl_opts['format'] = 'bestaudio/best'
@@ -141,50 +134,44 @@ def download_video(job_id, url, quality, fmt):
                 'preferredquality': '128',
             }]
         else:
+            # YouTube n-challenge se bachne ke liye standard combined resolution fallback
             if fmt:
                 ydl_opts['format'] = f'{fmt}/best'
             elif quality and quality != "best":
                 res_limit = quality.replace("p", "")
-                ydl_opts['format'] = f'best[height<={res_limit}][ext=mp4]/best'
+                ydl_opts['format'] = f'best[height<={res_limit}][ext=mp4]/bestvideo+bestaudio/best'
             else:
-                ydl_opts['format'] = 'best[ext=mp4]/best'
+                ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
-        # Download trigger
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        # 🚀 SMART CAPTURE & RENAME SYSTEM
+        # 🚀 GLOBAL HIGH-SPEED FILE CAPTURE
         import time
-        for attempt in range(20):
+        for attempt in range(25): # Increased timeout window to 25 seconds
             current_files = os.listdir(abs_download_dir)
             
-            # Special check for forced TeraBox output
             if platform == "terabox":
                 forced_name = f"{job_id}_terabox.mp4"
                 if forced_name in current_files:
                     old_path = os.path.join(abs_download_dir, forced_name)
                     safe_name = f"{job_id}.mp4"
                     new_path = os.path.join(abs_download_dir, safe_name)
-                    
                     if os.path.exists(new_path): os.remove(new_path)
                     os.rename(old_path, new_path)
-                    
                     jobs[job_id]["status"] = "done"
                     jobs[job_id]["filename"] = safe_name
                     jobs[job_id]["download_url"] = f"/file/{safe_name}"
                     return
 
-            # Standard matching loop for YouTube & others
             for f in current_files:
                 if f.startswith(job_id) and not any(ext in f for ext in ['.part', '.ytdl', '.temp', '.download']):
                     old_path = os.path.join(abs_download_dir, f)
                     ext = os.path.splitext(f)[1] or '.mp4'
                     safe_name = f"{job_id}{ext}"
                     new_path = os.path.join(abs_download_dir, safe_name)
-                    
                     if os.path.exists(new_path): os.remove(new_path)
                     os.rename(old_path, new_path)
-                    
                     jobs[job_id]["status"] = "done"
                     jobs[job_id]["filename"] = safe_name
                     jobs[job_id]["download_url"] = f"/file/{safe_name}"
@@ -197,6 +184,7 @@ def download_video(job_id, url, quality, fmt):
     except Exception as e:
         jobs[job_id]["status"] = "error"
         jobs[job_id]["error"] = f"Fix Engine Error: {str(e)}"
+
 @app.route("/")
 def index(): return render_template("index.html")
 
