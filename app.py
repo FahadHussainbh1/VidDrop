@@ -39,13 +39,13 @@ def download_video(job_id, url, quality, fmt):
         jobs[job_id]["status"] = "downloading"
         abs_download_dir = os.path.abspath(DOWNLOAD_DIR)
         
+        if not os.path.exists(abs_download_dir):
+            os.makedirs(abs_download_dir)
+            
         platform = detect_platform(url)
 
         # =======================================================
-        # 🚀 1. GOOGLE DRIVE DOWNLOAD LOGIC
-        # =======================================================
-        # =======================================================
-        # 🚀 1. GOOGLE DRIVE LARGE FILE BYPASS LOGIC
+        # 🚀 1. GOOGLE DRIVE (LARGE & SMALL FILES) 100% FIX
         # =======================================================
         if platform == "google_drive":
             file_id_match = re.search(r'/d/([a-zA-Z0-9-_]+)', url) or re.search(r'id=([a-zA-Z0-9-_]+)', url)
@@ -58,27 +58,22 @@ def download_video(job_id, url, quality, fmt):
             safe_name = f"{job_id}_drive_video.mp4"
             output_path = os.path.join(abs_download_dir, safe_name)
             
-            # Create a persistent session to hold Google's tracking cookies
             session = requests.Session()
-            
-            # Step 1: Send a request to see if Google throws a large file confirmation page
             base_url = "https://docs.google.com/uc?export=download"
+            
             response = session.get(base_url, params={'id': file_id}, stream=True)
             
-            # Step 2: Extract confirmation token if present in cookies or HTML content
             confirm_token = None
             for key, value in response.cookies.items():
                 if key.startswith('download_warning'):
                     confirm_token = value
                     break
                     
-            # If token wasn't in cookies, look inside the html page content
             if not confirm_token:
                 match = re.search(r'confirm=([A-Za-z0-9_]+)', response.text)
                 if match:
                     confirm_token = match.group(1)
             
-            # Step 3: If confirmation token is found, make the final request with the token
             params = {'id': file_id}
             if confirm_token:
                 params['confirm'] = confirm_token
@@ -86,20 +81,18 @@ def download_video(job_id, url, quality, fmt):
             final_response = session.get(base_url, params=params, stream=True)
             final_response.raise_for_status()
             
-            # Step 4: Stream down the actual large video chunk by chunk
             total_length = int(final_response.headers.get('content-length', 0))
             downloaded = 0
             
             with open(output_path, 'wb') as f:
-                for chunk in final_response.iter_content(chunk_size=1024 * 1024): # 1MB chunks for speed
+                for chunk in final_response.iter_content(chunk_size=1024 * 1024):
                     if chunk:
                         f.write(chunk)
                         downloaded += len(chunk)
                         if total_length > 0:
                             jobs[job_id]["progress"] = round((downloaded / total_length) * 100, 2)
                         else:
-                            # If content-length is hidden by Google, show mock progress based on megabytes downloaded
-                            jobs[job_id]["progress"] = f"Downloaded {round(downloaded / (1024*1024), 1)} MB"
+                            jobs[job_id]["progress"] = f"{round(downloaded / (1024*1024), 1)} MB"
             
             jobs[job_id]["status"] = "done"
             jobs[job_id]["filename"] = safe_name
@@ -107,9 +100,8 @@ def download_video(job_id, url, quality, fmt):
             return
 
         # =======================================================
-        # 🚀 2. TERABOX & OTHER PLATFORMS (Via yt-dlp)
+        # 🚀 2. TERABOX, YOUTUBE & OTHER PLATFORMS
         # =======================================================
-        # Default template for standard platforms
         output_template = os.path.join(abs_download_dir, f"{job_id}_%(title).50s.%(ext)s")
 
         def progress_hook(d):
@@ -126,22 +118,44 @@ def download_video(job_id, url, quality, fmt):
             'geo_bypass': True,
             'ignoreerrors': True,
             'progress_hooks': [progress_hook],
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+            }
         }
 
-        # 🚀 CRITICAL FIXED: TeraBox strict single file routing
+        if os.path.exists(COOKIES_PATH):
+            ydl_opts['cookiefile'] = COOKIES_PATH
+
+        # 🎯 PLATFORM BASED FORMAT ROUTING
         if platform == "terabox":
             ydl_opts['format'] = 'best'
-            # Force target path to be completely clean and predictible without dynamic titles
+            # STRICT TERABOX TEMPLATE BYPASS (No dynamic title bugs)
             ydl_opts['outtmpl'] = os.path.join(abs_download_dir, f"{job_id}_terabox.mp4")
+        elif quality == "audio":
+            ydl_opts['format'] = 'bestaudio/best'
+            ydl_opts['postprocessors'] = [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '128',
+            }]
         else:
-            ydl_opts['format'] = 'bestvideo+bestaudio/best'
+            if fmt:
+                ydl_opts['format'] = f'{fmt}/best'
+            elif quality and quality != "best":
+                res_limit = quality.replace("p", "")
+                ydl_opts['format'] = f'best[height<={res_limit}][ext=mp4]/best'
+            else:
+                ydl_opts['format'] = 'best[ext=mp4]/best'
 
+        # Download trigger
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
         # 🚀 SMART CAPTURE & RENAME SYSTEM
         import time
-        for attempt in range(15):
+        for attempt in range(20):
             current_files = os.listdir(abs_download_dir)
             
             # Special check for forced TeraBox output
@@ -160,7 +174,7 @@ def download_video(job_id, url, quality, fmt):
                     jobs[job_id]["download_url"] = f"/file/{safe_name}"
                     return
 
-            # Fallback normal checking for other platforms
+            # Standard matching loop for YouTube & others
             for f in current_files:
                 if f.startswith(job_id) and not any(ext in f for ext in ['.part', '.ytdl', '.temp', '.download']):
                     old_path = os.path.join(abs_download_dir, f)
@@ -178,11 +192,11 @@ def download_video(job_id, url, quality, fmt):
             time.sleep(1)
 
         jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = f"File processed but not captured. Active files: {os.listdir(abs_download_dir)}"    
+        jobs[job_id]["error"] = "Download completed but file output verification timed out."
+            
     except Exception as e:
         jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = f"Download failed: {str(e)}"
-
+        jobs[job_id]["error"] = f"Fix Engine Error: {str(e)}"
 @app.route("/")
 def index(): return render_template("index.html")
 
