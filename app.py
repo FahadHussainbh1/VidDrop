@@ -22,6 +22,7 @@ jobs = {}
 
 # Cookies file ka path define kiya jo hum Render par banayein ge
 COOKIES_PATH = os.path.join(BASE_DIR, "cookies.txt")
+
 def detect_platform(url):
     url = url.lower()
     if "instagram.com" in url: return "instagram"
@@ -33,6 +34,7 @@ def detect_platform(url):
     if any(domain in url for domain in ["terabox", "nebx.cc", "teraboxapp", "1024tera", "terasharefile"]): 
         return "terabox"
     return "other"
+
 def download_video(job_id, url, quality, fmt):
     try:
         jobs[job_id]["status"] = "downloading"
@@ -93,9 +95,42 @@ def download_video(job_id, url, quality, fmt):
             return
 
         # =======================================================
-        # 🚀 2. YOUTUBE, FACEBOOK, TERABOX, TIKTOK, PINTEREST
+        # 🚀 1.5 FACEBOOK DIRECT BYPASS (No yt-dlp parsing issue)
         # =======================================================
-        # ✨ FIX: Ext ko strictly mp4 ya standard stream par force kar rahe hain taaki confusion na ho
+        if platform == "facebook":
+            import requests
+            api_url = f"https://api.bhadootech.com/fb?link={url}"
+            api_res = requests.get(api_url, timeout=15).json()
+            
+            # Prefer HD quality, fallback to SD
+            video_url = api_res.get("hd") or api_res.get("sd")
+            
+            if video_url:
+                safe_name = f"{job_id}_fb.mp4"
+                output_path = os.path.join(abs_download_dir, safe_name)
+                
+                vid_response = requests.get(video_url, stream=True)
+                total_length = int(vid_response.headers.get('content-length', 0))
+                downloaded = 0
+                
+                with open(output_path, 'wb') as f:
+                    for chunk in vid_response.iter_content(chunk_size=1024 * 1024):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total_length > 0:
+                                jobs[job_id]["progress"] = round((downloaded / total_length) * 100, 2)
+                                
+                jobs[job_id]["status"] = "done"
+                jobs[job_id]["filename"] = safe_name
+                jobs[job_id]["download_url"] = f"/file/{safe_name}"
+                return
+            else:
+                print("FB Bypass API didn't return stream, trying fallback to yt-dlp...")
+
+        # =======================================================
+        # 🚀 2. YOUTUBE, TERABOX, TIKTOK, PINTEREST, INSTAGRAM
+        # =======================================================
         if platform == "terabox":
             output_template = os.path.join(abs_download_dir, f"{job_id}_terabox.mp4")
         else:
@@ -109,19 +144,18 @@ def download_video(job_id, url, quality, fmt):
                     jobs[job_id]["progress"] = round((downloaded / total) * 100, 2)
 
         ydl_opts = {
-    'ffmpeg_location': FFMPEG_PATH,
-    'no_playlist': True,
-    'outtmpl': output_template,
-    'geo_bypass': True,
-    'ignoreerrors': False,
-    'update_self': True,  # ✨ YEH LINE YT-DLP KO HAR HIT PAR AUTO-UPDATE KRE GI
-    'progress_hooks': [progress_hook],
-    'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        'Accept': '*/*',
-        'Accept-Language': 'en-US,en;q=0.5',
-    }
-}
+            'ffmpeg_location': FFMPEG_PATH,
+            'no_playlist': True,
+            'outtmpl': output_template,
+            'geo_bypass': True,
+            'ignoreerrors': False,
+            'progress_hooks': [progress_hook],
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.5',
+            }
+        }
 
         if os.path.exists(COOKIES_PATH):
             ydl_opts['cookiefile'] = COOKIES_PATH
@@ -168,7 +202,6 @@ def download_video(job_id, url, quality, fmt):
                     return
 
             for f in current_files:
-                # Agar file job_id se start ho rahi hai aur part/temp nahi hai
                 if f.startswith(job_id) and not any(ext in f for ext in ['.part', '.ytdl', '.temp', '.download']):
                     jobs[job_id]["status"] = "done"
                     jobs[job_id]["filename"] = f
@@ -225,7 +258,6 @@ def receive_feedback():
 # 👇 ROBOTS.TXT ROUTE ADDED HERE CLEANLY
 @app.route("/robots.txt")
 def robots_txt():
-    # Strict plain text content headers with explicit absolute access
     content = "User-agent: *\nAllow: /\nDisallow:\n"
     response = Response(content, mimetype="text/plain")
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -238,7 +270,6 @@ def robots_txt():
 def google_verify():
     return "google-site-verification: google877c2bdc7ac64d06.html", 200, {'Content-Type': 'text/html'}
 
-
 @app.route("/sitemap.xml")
 def sitemap():
     xml_content = """<?xml version="1.0" encoding="UTF-8"?>
@@ -250,3 +281,6 @@ def sitemap():
         </url>
     </urlset>"""
     return Response(xml_content, mimetype='application/xml')
+
+if __name__ == '__main__':
+    app.run(host='127.0.0.1', port=5000, debug=True)
