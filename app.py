@@ -109,18 +109,19 @@ def download_video(job_id, url, quality, fmt):
                     jobs[job_id]["progress"] = round((downloaded / total) * 100, 2)
 
         ydl_opts = {
-            'ffmpeg_location': FFMPEG_PATH,
-            'no_playlist': True,
-            'outtmpl': output_template,
-            'geo_bypass': True,
-            'ignoreerrors': False,  # ✨ Changed to False taaki asli error terminal par dikhe!
-            'progress_hooks': [progress_hook],
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.5',
-            }
-        }
+    'ffmpeg_location': FFMPEG_PATH,
+    'no_playlist': True,
+    'outtmpl': output_template,
+    'geo_bypass': True,
+    'ignoreerrors': False,
+    'update_self': True,  # ✨ YEH LINE YT-DLP KO HAR HIT PAR AUTO-UPDATE KRE GI
+    'progress_hooks': [progress_hook],
+    'http_headers': {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.5',
+    }
+}
 
         if os.path.exists(COOKIES_PATH):
             ydl_opts['cookiefile'] = COOKIES_PATH

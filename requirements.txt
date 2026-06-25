@@ -1,5 +1,5 @@
 flask>=2.3.0
-yt-dlp>=2024.1.0
+git+https://github.com/yt-dlp/yt-dlp.git@master
 gunicorn
 imageio-ffmpeg
 browser-cookie3
