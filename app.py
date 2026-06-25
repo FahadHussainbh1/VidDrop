@@ -33,7 +33,6 @@ def detect_platform(url):
     if any(domain in url for domain in ["terabox", "nebx.cc", "teraboxapp", "1024tera", "terasharefile"]): 
         return "terabox"
     return "other"
-
 def download_video(job_id, url, quality, fmt):
     try:
         jobs[job_id]["status"] = "downloading"
@@ -45,7 +44,7 @@ def download_video(job_id, url, quality, fmt):
         platform = detect_platform(url)
 
         # =======================================================
-        # 🚀 1. GOOGLE DRIVE FIXED STREAM
+        # 🚀 1. GOOGLE DRIVE ROUTE
         # =======================================================
         if platform == "google_drive":
             file_id_match = re.search(r'/d/([a-zA-Z0-9-_]+)', url) or re.search(r'id=([a-zA-Z0-9-_]+)', url)
@@ -94,9 +93,13 @@ def download_video(job_id, url, quality, fmt):
             return
 
         # =======================================================
-        # 🚀 2. TERABOX, YOUTUBE & GENERAL FALLBACKS
+        # 🚀 2. YOUTUBE, FACEBOOK, TERABOX, TIKTOK, PINTEREST
         # =======================================================
-        output_template = os.path.join(abs_download_dir, f"{job_id}_%(title).50s.%(ext)s")
+        # ✨ FIX: Ext ko strictly mp4 ya standard stream par force kar rahe hain taaki confusion na ho
+        if platform == "terabox":
+            output_template = os.path.join(abs_download_dir, f"{job_id}_terabox.mp4")
+        else:
+            output_template = os.path.join(abs_download_dir, f"{job_id}.%(ext)s")
 
         def progress_hook(d):
             if d['status'] == 'downloading':
@@ -110,7 +113,7 @@ def download_video(job_id, url, quality, fmt):
             'no_playlist': True,
             'outtmpl': output_template,
             'geo_bypass': True,
-            'ignoreerrors': True,
+            'ignoreerrors': False,  # ✨ Changed to False taaki asli error terminal par dikhe!
             'progress_hooks': [progress_hook],
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
@@ -122,10 +125,9 @@ def download_video(job_id, url, quality, fmt):
         if os.path.exists(COOKIES_PATH):
             ydl_opts['cookiefile'] = COOKIES_PATH
 
-        # 🎯 ULTRA FLEXIBLE FORMAT ROUTING TO AVOID RENDER BLOCKING
+        # FORMAT ROUTING
         if platform == "terabox":
             ydl_opts['format'] = 'best/bestvideo'
-            ydl_opts['outtmpl'] = os.path.join(abs_download_dir, f"{job_id}_terabox.mp4")
         elif quality == "audio":
             ydl_opts['format'] = 'bestaudio/best'
             ydl_opts['postprocessors'] = [{
@@ -134,7 +136,6 @@ def download_video(job_id, url, quality, fmt):
                 'preferredquality': '128',
             }]
         else:
-            # YouTube n-challenge se bachne ke liye standard combined resolution fallback
             if fmt:
                 ydl_opts['format'] = f'{fmt}/best'
             elif quality and quality != "best":
@@ -143,12 +144,13 @@ def download_video(job_id, url, quality, fmt):
             else:
                 ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
+        # Trigger download strictly
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        # 🚀 GLOBAL HIGH-SPEED FILE CAPTURE
+        # 🚀 QUICK FILE SCANNER (Strict Match)
         import time
-        for attempt in range(25): # Increased timeout window to 25 seconds
+        for attempt in range(15):
             current_files = os.listdir(abs_download_dir)
             
             if platform == "terabox":
@@ -165,25 +167,19 @@ def download_video(job_id, url, quality, fmt):
                     return
 
             for f in current_files:
+                # Agar file job_id se start ho rahi hai aur part/temp nahi hai
                 if f.startswith(job_id) and not any(ext in f for ext in ['.part', '.ytdl', '.temp', '.download']):
-                    old_path = os.path.join(abs_download_dir, f)
-                    ext = os.path.splitext(f)[1] or '.mp4'
-                    safe_name = f"{job_id}{ext}"
-                    new_path = os.path.join(abs_download_dir, safe_name)
-                    if os.path.exists(new_path): os.remove(new_path)
-                    os.rename(old_path, new_path)
                     jobs[job_id]["status"] = "done"
-                    jobs[job_id]["filename"] = safe_name
-                    jobs[job_id]["download_url"] = f"/file/{safe_name}"
+                    jobs[job_id]["filename"] = f
+                    jobs[job_id]["download_url"] = f"/file/{f}"
                     return
             time.sleep(1)
 
-        jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = "Download completed but file output verification timed out."
+        raise Exception("File downloaded but scan validation timed out.")
             
     except Exception as e:
         jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = f"Fix Engine Error: {str(e)}"
+        jobs[job_id]["error"] = str(e)
 
 @app.route("/")
 def index(): return render_template("index.html")
